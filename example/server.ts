@@ -1,10 +1,10 @@
 import express from 'express';
-import profile from '../src/main';
+import profile, { track } from '../src/main';
 import { spawn } from 'child_process';
 
 const app = express();
 
-profile(app);
+profile(app, {prefix:'/api'});
 
 app.use(async function auth(req, res, next) {
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -16,7 +16,7 @@ app.get('/api/users', (req, res) => {
 });
 
 app.get('/api/orders', async function dbQuery(req, res) {
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await track('fake-db-query', async ()=> await new Promise((resolve) => setTimeout(resolve, 300)));
   res.json({ orders: [1, 2, 3] });
 });
 
