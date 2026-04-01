@@ -2,21 +2,38 @@
   "name": "express-k6-profiler",
   "version": "1.0.0",
   "description": "",
-  "main": "src/main.ts",
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon example/server.ts"
+    "dev": "nodemon example/server.ts",
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": [],
+  "keywords": [
+    "express",
+    "k6",
+    "profiler",
+    "performance",
+    "monitoring",
+    "load-test"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "peerDependencies": {
+    "express": "^4.0.0 || ^5.0.0"
+  },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/node": "^22.15.0",
     "express": "^5.2.1",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
-    "tsc": "^2.0.4",
     "typescript": "^6.0.2"
   }
 }
