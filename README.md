@@ -4,10 +4,10 @@ K6 testing helped me see that my backend's latency was high, but it didn't tell 
 
 This package shows exactly where the time is being spent in each part of your Express app.
 
-![k6 average latency results](./read-me-example/k6-result.png)
+![k6 average latency results](https://raw.githubusercontent.com/yonatan-h/express-k6-profiler/main/read-me-example/k6-result.png)
 _k6 shows you average latency is 704ms..._
 
-![express-k6-profiler dashboard](./read-me-example/ekp-result.png)
+![express-k6-profiler dashboard](https://raw.githubusercontent.com/yonatan-h/express-k6-profiler/main/read-me-example/ekp-result.png)
 _...and this tells you it's because the route of GET /api/users/:id is slow. You found your bottleneck!_
 
 ## Get Started

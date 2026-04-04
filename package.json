@@ -1,7 +1,7 @@
 {
   "name": "express-k6-profiler",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.1.0",
+  "description": "A drop-in dashboard to profile Express bottlenecks, middlewares, and database queries during k6 load testing.",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
   "files": [
@@ -22,7 +22,11 @@
     "monitoring",
     "load-test"
   ],
-  "author": "",
+  "author": "Yonatan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yonatan-h/express-k6-profiler.git"
+  },
   "license": "ISC",
   "type": "commonjs",
   "peerDependencies": {
