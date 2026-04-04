@@ -1,37 +1,41 @@
 import express from 'express';
-import profile, { track } from '../src/main';
+import { profile, track } from '../src/main';
 import { spawn } from 'child_process';
 
-const app = express();
+//items.js imagine itemsRouter being imported
 const itemsRouter = express.Router();
+itemsRouter.get('/deep', (req, res) => {
+  res.json({ items: [1, 2, 3] });
+});
 
+//app.js
+const app = express();
 profile(app, { prefix: '/api' });
 
-app.use(async function auth(req, res, next) {
+app.use(async function authUsers(req, res, next) {
   await new Promise((resolve) => setTimeout(resolve, 50));
   next();
 });
 
-//get
-app.get('/api/users', (req, res) => {
-  res.json({ users: ['Alice', 'Bob'] });
+app.get('/api/users/:id', async (req, res) => {
+  await new Promise((resolve) => setTimeout(resolve, 100)); //db query
+  res.json({ user: 'Bob' });
 });
 
 app.get('/api/orders', async function dbQuery(req, res) {
+  await track('query user', async () => await new Promise((resolve) => setTimeout(resolve, 300)));
+
   await track(
-    'fake-db-query',
+    'query user orders',
     async () => await new Promise((resolve) => setTimeout(resolve, 300)),
   );
   res.json({ orders: [1, 2, 3] });
 });
 
-itemsRouter.get('/deep', (req, res) => {
-  res.json({ items: [1, 2, 3] });
-});
 app.use('/api/items', itemsRouter);
 
-//post
-app.post('/api/users', (req, res) => {
+app.post('/api/users', async (req, res) => {
+  await new Promise((resolve) => setTimeout(resolve, 20));
   res.status(201).json({ message: 'user created' });
 });
 app.post('/api/orders', (req, res) => {
@@ -41,13 +45,23 @@ itemsRouter.post('/deep', (req, res) => {
   res.status(500).json({ error: 'items cant be created' });
 });
 
+itemsRouter.get('/exclusive', async(req, res)=>{
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  throw new Error('can not query exclusive items')
+})
+itemsRouter.use(async function handleErrors(err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction){
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  res.status(500).json({ error: 'Unexpected error:'+err.message })
+})
+
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Example app listening on http://localhost:${PORT}`);
 
   const child = spawn('k6', ['run', 'example/k6-test.js'], {
-    // stdio: 'inherit',
-    shell: true
+    stdio: 'inherit',
+    shell: true,
   });
 
   child.on('exit', async () => {

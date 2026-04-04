@@ -9,7 +9,8 @@ import {
 import path from 'path';
 import fs from 'fs/promises';
 
-export type Method = null | 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
+const Methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
+export type Method = null | (typeof Methods)[number];
 
 const storage = new AsyncLocalStorage<{
   capturedBody?: any;
@@ -18,6 +19,8 @@ const storage = new AsyncLocalStorage<{
 const isOk = (statusCode: number) => statusCode < 400;
 
 const wrapHandler = (handler: RequestHandler, mItem: MeasurementItem): RequestHandler => {
+  if ((handler as any).__ekp_wrapped) return handler;
+
   const measure = (begin: number, ended: [boolean]) => {
     const store = storage.getStore();
     if (ended[0]) return;
@@ -36,7 +39,36 @@ const wrapHandler = (handler: RequestHandler, mItem: MeasurementItem): RequestHa
     }
   };
 
-  return (req: Request, res: Response, next: NextFunction) => {
+  if (handler.length === 4) {
+    const errorWrapper: any = (err: any, req: Request, res: Response, next: NextFunction) => {
+      const begin = Date.now();
+      let ended: [boolean] = [false];
+
+      const oldResJson = res.json.bind(res);
+      const oldResSend = res.send.bind(res);
+
+      res.json = (...args: any[]) => {
+        captureBodyIfError(res, ...args);
+        measure(begin, ended);
+        return oldResJson(...args);
+      };
+
+      res.send = (...args: any[]) => {
+        captureBodyIfError(res, ...args);
+        measure(begin, ended);
+        return oldResSend(...args);
+      };
+
+      return (handler as any)(err, req, res, (...nextArgs: any[]) => {
+        measure(begin, ended);
+        next(...nextArgs);
+      });
+    };
+    errorWrapper.__ekp_wrapped = true;
+    return errorWrapper;
+  }
+
+  const wrapper: RequestHandler = (req, res, next) => {
     const begin = Date.now();
     let ended: [boolean] = [false];
 
@@ -60,9 +92,48 @@ const wrapHandler = (handler: RequestHandler, mItem: MeasurementItem): RequestHa
       next(...nextArgs);
     });
   };
+
+  (wrapper as any).__ekp_wrapped = true;
+  return wrapper;
 };
 
+function patchExistingStack(router: Application, currentPath: string) {
+  if (!router.stack) return; //why doesnt it have a stack despite TS definitions? investigate in future
+  for (const layer of router.stack) {
+    if (layer.route) {
+      //is a route
+      for (const innerLayer of layer.route.stack) {
+        const method: string = innerLayer.method.toLocaleLowerCase();
+        if (!Methods.includes(method as any)) {
+          console.error('Skipped wrapping route because of unknown method:', method);
+          continue;
+        }
+        innerLayer.handle = wrapHandler(innerLayer.handle, {
+          name: 'route handler',
+          type: 'route',
+          path: currentPath + (layer.route.path || ''),
+          method: method as Method,
+          millis: -1,
+        });
+      }
+    } else if (layer.name === 'router' && Array.isArray((layer.handle as any).stack)) {
+      //not sure if is a reliable indicator of routers
+      wrapRouter(layer.handle as Application, currentPath);
+    } else if (typeof layer.handle === 'function') {
+      layer.handle = wrapHandler(layer.handle, {
+        name: layer.name && layer.name !== '<anonymous>' ? layer.name : 'anonymous',
+        type: 'middleware',
+        path: currentPath,
+        method: null,
+        millis: -1,
+      });
+    }
+  }
+}
+
 function wrapRouter(app: Application, prePath: string = ''): Application {
+  patchExistingStack(app, prePath);
+
   const oldUse = app.use.bind(app);
   app.use = (...args: any[]) => {
     const path = typeof args[0] === 'string' ? args[0] : undefined;
@@ -71,7 +142,9 @@ function wrapRouter(app: Application, prePath: string = ''): Application {
       if (typeof args[i] !== 'function') continue;
       const arg = args[i] as Application | RequestHandler;
       if ('use' in arg) {
-        args[i] = wrapRouter(arg, prePath + (path || ''));
+        const fullPath = prePath + (path || '');
+        patchExistingStack(arg, fullPath);
+        args[i] = wrapRouter(arg, fullPath);
       } else {
         args[i] = wrapHandler(arg, {
           name: arg.name || 'anonymous',
@@ -121,12 +194,24 @@ function wrapRouter(app: Application, prePath: string = ''): Application {
 }
 
 export async function track<T>(name: string, fn: () => Promise<T>): Promise<T> {
+
   const store = storage.getStore();
   if (!store) {
     console.error(
       'track() must be called only after profile(app) at the top of app.js or equivalent',
     );
     return await fn();
+  }
+
+  if (typeof name !== 'string'){
+    const error = new Error(`track(x,y) x must be a string. It is currently ${typeof name}: ${name}`);
+    store.capturedBody = { error: error }; //handle elegantly
+    throw error;
+  }
+  if (typeof fn !== 'function'){
+    const error = new Error(`track(x,y) y must be a function. It is currently ${typeof fn}: ${fn}`);
+    store.capturedBody = { error: error }; //handle elegantly
+    throw error;
   }
 
   const mItem: MeasurementItem = { name, type: 'tracked-fn', path: '', method: null, millis: -1 };
@@ -145,7 +230,7 @@ export async function track<T>(name: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export default async function profile(
+export function profile(
   app: Application,
   options: { prefix: string } = { prefix: '' },
 ) {
@@ -251,4 +336,6 @@ export default async function profile(
   });
 
   wrapRouter(app);
+  console.log(`Express-k6-profiler setup complete. Please open yourbackend:port${options.prefix}/__profile`)
 }
+

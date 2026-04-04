@@ -10,13 +10,22 @@
     <div class="max-w-6xl mx-auto flex flex-col gap-2 my-4">
       <div class="flex items-center justify-between">
         <h1 class="text-sm font-bold">Express K6 Profiler</h1>
-        <button
-          id="resetBtn"
-          onclick="fetch('__profile/reset', { method: 'POST' }).then(() => location.reload())"
-          class="border px-6 border-gray-200 rounded-sm text-sm hover:cursor-pointer"
-        >
-          Clear Measurements
-        </button>
+        <div class="flex items-center gap-4">
+          <a 
+            href="https://github.com/yonatan-h/express-k6-profiler" 
+            target="_blank" 
+            class="text-sm text-gray-500 hover:text-gray-900 underline underline-offset-2"
+          >
+            View Documentation & Repo
+          </a>
+          <button
+            id="resetBtn"
+            onclick="fetch('__profile/reset', { method: 'POST' }).then(() => location.reload())"
+            class="border px-6 py-1.5 border-gray-200 rounded-sm text-sm hover:bg-gray-50 cursor-pointer"
+          >
+            Clear Measurements
+          </button>
+        </div>
       </div>
 
       <table>
@@ -53,7 +62,7 @@
 
     <script>
       function addBar(cell, portion, parentPortions, parentPortionIndex, isParent) {
-        const totalWidth = 200;
+        const totalWidth = 300;
         const container = document.createElement('div');
         container.className =
           'relative h-4 overflow-hidden rounded-xs ' + (isParent ? 'border border-gray-200' : '');
