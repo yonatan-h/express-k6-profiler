@@ -11,11 +11,14 @@ import fs from 'fs/promises';
 
 export type Method = null | 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 
-const storage = new AsyncLocalStorage<{ capturedBody?: any; mItems: MeasurementItem[] }>();
+const storage = new AsyncLocalStorage<{
+  capturedBody?: any;
+  mItems: MeasurementItem[];
+}>();
 const isOk = (statusCode: number) => statusCode < 400;
 
 const wrapHandler = (handler: RequestHandler, mItem: MeasurementItem): RequestHandler => {
-  const measure = (begin: number, end: number, ended: [boolean]) => {
+  const measure = (begin: number, ended: [boolean]) => {
     const store = storage.getStore();
     if (ended[0]) return;
     if (!store) return console.error('No store found for ' + mItem.name);
@@ -42,18 +45,18 @@ const wrapHandler = (handler: RequestHandler, mItem: MeasurementItem): RequestHa
 
     res.json = (...args: any[]) => {
       captureBodyIfError(res, ...args);
-      measure(begin, Date.now(), ended);
+      measure(begin, ended);
       return oldResJson(...args);
     };
 
     res.send = (...args: any[]) => {
       captureBodyIfError(res, ...args);
-      measure(begin, Date.now(), ended);
+      measure(begin, ended);
       return oldResSend(...args);
     };
 
     return handler(req, res, (...nextArgs: any[]) => {
-      measure(begin, Date.now(), ended);
+      measure(begin, ended);
       next(...nextArgs);
     });
   };
@@ -68,12 +71,12 @@ function wrapRouter(app: Application, prePath: string = ''): Application {
       if (typeof args[i] !== 'function') continue;
       const arg = args[i] as Application | RequestHandler;
       if ('use' in arg) {
-        args[i] = wrapRouter(arg, path || '');
+        args[i] = wrapRouter(arg, prePath + (path || ''));
       } else {
         args[i] = wrapHandler(arg, {
           name: arg.name || 'anonymous',
           type: 'middleware',
-          path: prePath + path,
+          path: prePath + (path || ''),
           method: null,
           millis: -1,
         });
@@ -104,7 +107,7 @@ function wrapRouter(app: Application, prePath: string = ''): Application {
         args[i] = wrapHandler(arg, {
           name: isRoute ? `route handler` : arg.name || 'anonymous',
           type: isRoute ? 'route' : 'middleware',
-          path: prePath + path || '',
+          path: prePath + (path || ''),
           method: method.toUpperCase() as Method,
           millis: -1,
         });
@@ -166,13 +169,14 @@ export default async function profile(
       res.on('finish', () => {
         const end = Date.now();
         const measurements = getMeasurements();
-        const templatePath = req.route?.path;
         const store = storage.getStore();
 
         if (!store) {
           console.error('No store found for ' + req.path);
           return;
         }
+        const routeItem = [...store.mItems].reverse().find((m) => m.type === 'route');
+        const templatePath = routeItem ? routeItem.path : req.route ? req.route.path : null;
 
         let name: string;
         let key: string;
@@ -200,18 +204,23 @@ export default async function profile(
             mName = 'route handler';
             mKey = `${mItem.method} ${mItem.path}`;
           } else if (mItem.type === 'middleware') {
-            mName = mItem.name + ' middleware';
-            mKey = name;
+            mName = mItem.name + ' (middleware)';
+            mKey = `middleware:${mItem.name}`;
           } else if (mItem.type === 'tracked-fn') {
-            mName = mItem.name + '()';
-            mKey = name;
+            mName = mItem.name + ' (tracked call)';
+            mKey = `tracked-fn:${mItem.name}`;
           } else {
             mName = 'unknown';
             mKey = 'unknown';
           }
 
           if (!measurements[key].subMeasurements[mKey]) {
-            measurements[key].subMeasurements[mKey] = { name: mName, millis: 0, count: 0 };
+            measurements[key].subMeasurements[mKey] = {
+              type: mItem.type,
+              name: mName,
+              millis: 0,
+              count: 0,
+            };
           }
           measurements[key].subMeasurements[mKey].millis += mItem.millis;
           measurements[key].subMeasurements[mKey].count++;

@@ -46,13 +46,13 @@ app.listen(PORT, () => {
   console.log(`Example app listening on http://localhost:${PORT}`);
 
   const child = spawn('k6', ['run', 'example/k6-test.js'], {
-    stdio: 'inherit',
-    // shell: true
+    // stdio: 'inherit',
+    shell: true
   });
 
   child.on('exit', async () => {
     console.log('k6 exited');
-    console.log(await fetch(`http://localhost:${PORT}/api/__profile/json`).then((res) => res.json()));
+    // console.log(await fetch(`http://localhost:${PORT}/api/__profile/json`).then((res) => res.json()));
     console.log('View', `http://localhost:${PORT}/api/__profile`);
   });
 });

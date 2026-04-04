@@ -8,7 +8,16 @@
   </head>
   <body class="">
     <div class="max-w-6xl mx-auto flex flex-col gap-2 my-4">
-      <h1 class="text-sm   font-bold">Express K6 Profiler</h1>
+      <div class="flex items-center justify-between">
+        <h1 class="text-sm font-bold">Express K6 Profiler</h1>
+        <button
+          id="resetBtn"
+          onclick="fetch('__profile/reset', { method: 'POST' }).then(() => location.reload())"
+          class="border px-6 border-gray-200 rounded-sm text-sm hover:cursor-pointer"
+        >
+          Clear Measurements
+        </button>
+      </div>
 
       <table>
         <thead class="border-b border-gray-200">
@@ -23,11 +32,20 @@
       </table>
     </div>
 
-    <dialog id="errorDialog" class="rounded-sm p-0 backdrop:bg-black/30 max-w-md w-full fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 m-0" onclick="if(event.target===this)this.close()">
+    <dialog
+      id="errorDialog"
+      class="rounded-sm p-0 backdrop:bg-black/30 max-w-md w-full fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 m-0"
+      onclick="if (event.target === this) this.close();"
+    >
       <div class="p-4 flex flex-col gap-3">
         <div class="flex justify-between items-center">
           <h3 id="errorDialogTitle" class="font-semibold text-sm"></h3>
-          <button class="text-gray-400 cursor-pointer text-lg leading-none" onclick="errorDialog.close()">✕</button>
+          <button
+            class="text-gray-400 cursor-pointer text-lg leading-none"
+            onclick="errorDialog.close()"
+          >
+            ✕
+          </button>
         </div>
         <div id="errorDialogBody" class="flex flex-col gap-2"></div>
       </div>
@@ -74,10 +92,22 @@
         const res = await fetch('__profile/json');
         const data = await res.json();
         const tbody = document.getElementById('tbody');
+        if (!data.measurements || data.measurements.length === 0) {
+          const row = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 6;
+          td.className = 'bg-blue-50 py-4 px-4 mt-4 rounded';
+          td.textContent =
+            'No profile data collected yet. Please run your k6 test to start profiling.';
+          row.appendChild(td);
+          tbody.appendChild(row);
+          return;
+        }
 
         for (const m of data.measurements) {
           const row = document.createElement('tr');
           const isParent = m.indents === 0;
+          const isExcluded = m.excludePortion;
 
           const barTd = document.createElement('td');
           barTd.className = isParent ? ' pt-6 ' : ' ';
@@ -85,18 +115,24 @@
           row.appendChild(barTd);
 
           const nameTd = document.createElement('td');
-          nameTd.className = (isParent ? ' pt-6 ' : ' font-light ') + ' text-sm ';
+          nameTd.className =
+            (isParent ? ' pt-6 ' : ' ') +
+            ' text-sm ' +
+            (isExcluded || isParent ? '  ' : 'font-light');
           nameTd.textContent = (isParent ? '' : '↳ ') + m.name;
           row.appendChild(nameTd);
 
           const totalTd = document.createElement('td');
-          totalTd.className = ' text-sm ' + (isParent ? 'pt-6 ' : ' font-light  ');
+          totalTd.className =
+            ' text-sm ' +
+            (isParent ? 'pt-6 ' : '  ') +
+            (isExcluded || isParent? '' : 'font-light');
           totalTd.textContent = m.totalMilis + ' ms';
           row.appendChild(totalTd);
 
           const avgTd = document.createElement('td');
           avgTd.className = ' text-sm font-light ' + (isParent ? 'pt-6 ' : ' ');
-          avgTd.textContent = m.averageMilis.toFixed(1) + ' ms';
+          avgTd.textContent = m.averageMilis + ' ms';
           row.appendChild(avgTd);
 
           const countTd = document.createElement('td');
@@ -108,17 +144,21 @@
           errorTd.className = isParent ? 'pt-6' : '';
           if (m.errorHighlights) {
             const btn = document.createElement('button');
-            btn.className = 'text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded hover:bg-red-100 cursor-pointer';
+            btn.className =
+              'text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded hover:bg-red-100 cursor-pointer';
             btn.textContent = m.errorHighlights;
             btn.addEventListener('click', () => {
               errorDialogTitle.textContent = m.name;
               errorDialogBody.innerHTML = m.errors
-                .map(e => `
+                .map(
+                  (e) => `
                 <div class="flex items-center gap-2 text-xs bg-gray-50 p-2 rounded">
                   <span class=" text-red-600 px-1.5 py-0.5 rounded-sm font-mono shrink-0">${e.statusCode}</span>
                   <span class="text-gray-500">×${e.count}</span>
                   <pre class="overflow-x-auto flex-1">${e.lastMessage}</pre>
-                </div>`).join('');
+                </div>`,
+                )
+                .join('');
               errorDialog.showModal();
             });
             errorTd.appendChild(btn);

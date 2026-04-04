@@ -16,7 +16,10 @@ export type Measurements = Record<
     millis: number;
     count: number;
     errors: Record<number, { count: number; lastMessage: string }>;
-    subMeasurements: Record<string, { name: string; millis: number; count: number }>;
+    subMeasurements: Record<
+      string,
+      { type: MeasuredType; name: string; millis: number; count: number }
+    >;
   }
 >;
 
@@ -32,6 +35,7 @@ export interface FrontendMeasurements {
     averageMilis: number;
     totalMilis: number;
     portion: Portion;
+    excludePortion: boolean;
     key: string;
     parentMillis: number;
     parentKey: string;
@@ -73,10 +77,15 @@ export function convertToFrontendMeasurements(measurements: Measurements): Front
     frontMeasurements.push({
       name: measurement.name,
       errorHighlights: errorCount ? `${errorCount} Errors` : '',
-      errors: Object.entries(measurement.errors).map(([code, e]) => ({ statusCode: Number(code), count: e.count, lastMessage: e.lastMessage })),
+      errors: Object.entries(measurement.errors).map(([code, e]) => ({
+        statusCode: Number(code),
+        count: e.count,
+        lastMessage: e.lastMessage,
+      })),
       indents: 0,
+      excludePortion: false,
       count: measurement.count,
-      averageMilis: measurement.millis / measurement.count,
+      averageMilis: Math.round(measurement.millis / measurement.count),
       totalMilis: measurement.millis,
       parentMillis: measurement.millis,
       key: parentKey,
@@ -95,11 +104,12 @@ export function convertToFrontendMeasurements(measurements: Measurements): Front
         errors: [],
         indents: 1,
         count: childMeasurement.count,
-        averageMilis: childMeasurement.millis / measurement.count,
+        averageMilis: Math.round(childMeasurement.millis / measurement.count),
         totalMilis: childMeasurement.millis,
         parentMillis: measurement.millis,
         key: childKey,
         parentKey: parentKey,
+        excludePortion: childMeasurement.type === 'tracked-fn',
 
         portion: { start: 0, width: 0 },
         parentPortionIndex: -1,
@@ -108,9 +118,10 @@ export function convertToFrontendMeasurements(measurements: Measurements): Front
   }
 
   frontMeasurements.sort((m1, m2) => {
-    //sort by parentTotalMillis, then by parent id, then by indents, then by totalMillis,
+    //sort by parentTotalMillis, then by parent id, then by excluding portions, then by indents, then by totalMillis,
     if (m2.parentMillis !== m1.parentMillis) return m2.parentMillis - m1.parentMillis;
     if (m2.parentKey !== m1.parentKey) return m2.parentKey.localeCompare(m1.parentKey);
+    if (m2.excludePortion !== m1.excludePortion) return m1.excludePortion ? 1 : -1;
     if (m2.indents !== m1.indents) return m1.indents - m2.indents;
     return m2.totalMilis - m1.totalMilis;
   });
@@ -124,7 +135,7 @@ export function convertToFrontendMeasurements(measurements: Measurements): Front
       const width = measurement.totalMilis / totalMilis;
       measurement.portion = { start: currentPortion, width: width };
       parentPortions.push(measurement.portion);
-      measurement.parentPortionIndex = i;
+      measurement.parentPortionIndex = parentPortions.length - 1;
       currentPortion += width;
     }
   }
@@ -137,11 +148,15 @@ export function convertToFrontendMeasurements(measurements: Measurements): Front
       currentParent = measurement;
       childrenWidth = 0;
     } else {
-      if (currentParent) {
+      if (currentParent && !measurement.excludePortion) {
         const width = measurement.totalMilis / totalMilis;
         measurement.portion = { start: currentParent.portion.start + childrenWidth, width: width };
         measurement.parentPortionIndex = currentParent.parentPortionIndex;
         childrenWidth += width;
+      } else if (measurement.excludePortion) {
+        //do nothing
+      } else {
+        console.error('child with out a parent found l');
       }
     }
   }
