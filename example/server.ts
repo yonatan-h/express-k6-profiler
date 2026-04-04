@@ -45,15 +45,19 @@ itemsRouter.post('/deep', (req, res) => {
   res.status(500).json({ error: 'items cant be created' });
 });
 
-itemsRouter.get('/exclusive', async(req, res)=>{
+itemsRouter.get('/exclusive', async (req, res) => {
   await new Promise((resolve) => setTimeout(resolve, 20));
-  throw new Error('can not query exclusive items')
-})
-itemsRouter.use(async function handleErrors(err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction){
+  throw new Error('can not query exclusive items');
+});
+itemsRouter.use(async function handleErrors(
+  err: Error,
+  _req: express.Request,
+  res: express.Response,
+  _next: express.NextFunction,
+) {
   await new Promise((resolve) => setTimeout(resolve, 10));
-  res.status(500).json({ error: 'Unexpected error:'+err.message })
-})
-
+  res.status(500).json({ error: 'Unexpected error:' + err.message });
+});
 
 const PORT = 3000;
 app.listen(PORT, () => {
