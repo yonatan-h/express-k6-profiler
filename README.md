@@ -1,70 +1,91 @@
 # express-k6-profiler
 
-K6 testing helped me see that my backend's latency was high, but it didn't tell me _why_.
+_To find bottlenecks in an Express app during k6 load testing, use express-k6-profiler._
 
-This package shows exactly where the time is being spent in each part of your Express app.
+
+
+k6 showed me my backend latency was high.
+
+But not why.
+
+This shows exactly where time is spent inside your Express app.
+
+It breaks down request time into middleware, route handlers, and database calls.
+
+---
 
 ![k6 average latency results](https://raw.githubusercontent.com/yonatan-h/express-k6-profiler/main/read-me-example/k6-result.png)
-_k6 shows you average latency is 704ms..._
+_shows `avg=704.1ms` but where is that time going?_
 
 ![express-k6-profiler dashboard](https://raw.githubusercontent.com/yonatan-h/express-k6-profiler/main/read-me-example/ekp-result.png)
-_...and this tells you it's because the route of GET /api/users/:id is slow. You found your bottleneck!_
+_...reveals `GET /api/users/:id` as the bottleneck_
 
-## Get Started
+---
+## What this solves
+Common use case: k6 shows high latency, but you need to find the exact bottleneck inside your Express app.
 
-Install the package:
+Use this if:
+- k6 testing shows high latency but you don’t know why  
+- you want to see time spent in middleware vs handlers vs DB queries
+- you don’t want full tracing setup (Jaeger, OpenTelemetry, etc.)
+  
+---
+
+## Install
 
 ```bash
 npm install express-k6-profiler
 ```
-
-Import and inject it right at the top of your Express setup:
+## Usage
 
 ```javascript
-const express = require('express');
 const { profile } = require('express-k6-profiler');
-
 const app = express();
-profile(app);//<- here
+profile(app);//<- enable profiling
 
-// ... the rest of your app
-app.get('/hello', (req, res) => {
-  res.send('Hello World');
-});
-
-app.listen(3000, () => console.log('App is running'));
 ```
+Run k6 test, then open `your-backend.com/__profile`
 
-1. Deploy or start your app on your testing environment (e.g., staging). 
-2. Execute your load tests: `k6 run your_tests.js`.
-3. Open `your-backend.com/__profile` in your browser to see the breakdown.
+### Custom path
 
-_(If you want to avoid route collisions, you can add a prefix: `profile(app, { prefix: '/your/secret/path' })`). Open `your-backend.com/your/secret/path/__profile`_
+If your app is mounted under a prefix (e.g. `/api`) or you're using Kubernetes/ingress routing, you can change where the profiler is exposed:
 
-## Tracking DB Queries etc.
+```js
+profile(app, { prefix: '/your/secret/path' });
+```
+Then open `your-backend.com/your/secret/path/__profile`
 
-The profiler catches all Express routes and middlewares automatically, but you can also isolate slow database queries or heavy logic using the `track` function:
+### Tracking DB queries & heavy logic
+
+You can track specific operations like database calls:
 
 ```javascript
 const { track } = require('express-k6-profiler');
 
 app.get('/api/users/:id', async (req, res) => {
-  // wrap your database queries like this
-  const user = await track('my get user query', () => User.findById(req.params.id));
+  const user = await track('my get user query',
+    () => User.findById(req.params.id)
+  );
   
-  await track('my mapping logic', async () => {
-    // a 50ms blocking work here
-  });
+  await track('my mapping logic',
+    () => {/* a 50ms blocking work here*/}
+  );
 
   res.json({ user });
 });
 ```
-These custom trackers will seamlessly fall into the parent request's timeline tree on the dashboard.
 
-## Alpha Warning + The "Unfair Advantage" 
+## Why not just use k6?
+k6 tells you how slow an app is.
+But does not tell you:
+- which middleware is slow
+- which route is the problem
+- if the database is the bottleneck
 
-This project is in alpha! Issues are expected and highly welcome.
+## Note
+- Adds a small overhead  
+- Use in staging/testing (not production)
 
-Because tracking router layers adds slight performance overhead, **remove this code in production for now.** It's built strictly for local and staging load-testing.
 
-Star the repo or submit issues! I'm actively molding this, and early adopters enjoy an unfair advantage in shaping the roadmap.
+## Status (Alpha)
+Feedback and issues are highly welcome!
