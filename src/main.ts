@@ -198,7 +198,7 @@ export async function track<T>(name: string, fn: () => Promise<T>): Promise<T> {
   const store = storage.getStore();
   if (!store) {
     console.error(
-      'track() must be called only after profile(app) at the top of app.js or equivalent',
+      name+':track() must be called only after profile(app) at the top of app.js or equivalent',
     );
     return await fn();
   }
