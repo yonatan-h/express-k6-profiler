@@ -234,12 +234,16 @@ export function profile(
   app: Application,
   options: { prefix: string } = { prefix: '' },
 ) {
-  app.get(`${options.prefix}/__profile/json`, (req, res) => {
+  app.get(`${options.prefix}/__profile/api/all`, (req, res) => {
     res.json(convertToFrontendMeasurements(getMeasurements()));
   });
 
   app.get(`${options.prefix}/__profile`, async (req, res) => {
-    res.send(await fs.readFile(path.join(__dirname, 'measurement.html'), 'utf-8'));
+    if (process.env.NODE_ENV === 'production') {
+      res.send(await fs.readFile(path.join(__dirname, 'index.html'), 'utf-8'));
+    } else {
+      res.redirect('http://localhost:3001');
+    }
   });
 
   app.post(`${options.prefix}/__profile/reset`, (req, res) => {

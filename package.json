@@ -10,8 +10,11 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon example/server.ts",
-    "build": "tsc && cp src/measurement.html dist/",
+    "dev:server": "nodemon example/server.ts",
+    "dev:ui": "cd ui && npm run dev",
+    "dev": "concurrently -n \"SERVER,UI\" -c \"bgBlue.bold,bgMagenta.bold\" \"nodemon example/server.ts\" \"npm --prefix ui run dev --silent\"",
+    "build:ui": "cd ui && npm install && npm run build",
+    "build": "npm run build:ui && tsc && cp ui/dist/index.html dist/index.html",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -35,6 +38,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^22.15.0",
+    "concurrently": "^9.2.1",
     "express": "^5.2.1",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
