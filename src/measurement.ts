@@ -1,4 +1,4 @@
-import { Method } from './main';
+import type { Method } from './main';
 
 export type MeasuredType = 'route' | 'middleware' | 'tracked-fn';
 export type MeasurementItem = {

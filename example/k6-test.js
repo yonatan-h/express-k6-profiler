@@ -6,11 +6,13 @@ export const options = {
   duration: '1s', // Test duration
 };
 
+const PORT = 3010;
+
 export default function () {
   const responses = http.batch([
-    ['GET', 'http://localhost:3000/api/users/551'],
-    ['GET', 'http://localhost:3000/api/orders'],
-    ['GET', 'http://localhost:3000/api/items/deep'],
+    ['GET', `http://localhost:${PORT}/api/users/551`],
+    ['GET', `http://localhost:${PORT}/api/orders`],
+    ['GET', `http://localhost:${PORT}/api/items/deep`],
   ]);
 
   responses.forEach((res) => {
@@ -20,8 +22,8 @@ export default function () {
   });
 
   const responses2 = http.batch([
-    ['POST', 'http://localhost:3000/api/users'],
-    ['POST', 'http://localhost:3000/api/orders'],
+    ['POST', `http://localhost:${PORT}/api/users`],
+    ['POST', `http://localhost:${PORT}/api/orders`],
   ]);
 
   responses2.forEach((res) => {
@@ -31,8 +33,8 @@ export default function () {
   });
 
   const responses3 = http.batch([
-    ['POST', 'http://localhost:3000/api/items/deep'],
-    ['POST', 'http://localhost:3000/api/non-existent'],
+    ['POST', `http://localhost:${PORT}/api/items/deep`],
+    ['POST', `http://localhost:${PORT}/api/non-existent`],
   ]);
 
   responses3.forEach((res) => {
@@ -42,7 +44,7 @@ export default function () {
   });
 
   const responses4 = http.batch([
-    ['GET', 'http://localhost:3000/api/items/exclusive'],
+    ['GET', `http://localhost:${PORT}/api/items/exclusive`],
   ]);
 
   responses4.forEach((res) => {

@@ -1,8 +1,8 @@
-import { NextFunction, Request, Response, RequestHandler, Application } from 'express';
+import type { NextFunction, Request, Response, RequestHandler, Application } from 'express';
 import { AsyncLocalStorage } from 'async_hooks';
 import {
   getMeasurements,
-  MeasurementItem,
+  type MeasurementItem,
   resetMeasurements,
   convertToFrontendMeasurements,
 } from './measurement';
@@ -234,19 +234,36 @@ export function profile(
   app: Application,
   options: { prefix: string } = { prefix: '' },
 ) {
-  app.get(`${options.prefix}/__profile/api/all`, (req, res) => {
+  app.get(`${options.prefix}/__profile/api/all`, (_, res) => {
     res.json(convertToFrontendMeasurements(getMeasurements()));
   });
 
-  app.get(`${options.prefix}/__profile`, async (req, res) => {
-    if (process.env.NODE_ENV === 'production') {
-      res.send(await fs.readFile(path.join(__dirname, 'index.html'), 'utf-8'));
+  app.get(`${options.prefix}/__profile`, async (_, res) => {
+    let html: string;
+
+    if (process.env.__AS_DEV === 'true') {
+      try {
+        html = await (await fetch('http://localhost:3011/')).text();
+        //for vite to fetch its internal things from PORT=3011
+        html = html.replace('<head>', `<head><base href="http://localhost:3011/" />`);
+      } catch (e: any) {
+        return res.status(502).send('Vite UI server not running. Did you run `npm run dev` in the ui folder?<br><br>Error: ' + e.message);
+      }
     } else {
-      res.redirect('http://localhost:3001');
+      let htmlPath = path.join(__dirname, 'index.html');
+      try {
+        await fs.access(htmlPath);
+      } catch {
+        // If not found in the current directory, we're likely running locally via ts-node
+        htmlPath = path.join(__dirname, '../dist/index.html');
+      }
+      html = await fs.readFile(htmlPath, 'utf-8');
     }
+
+    res.send(html);
   });
 
-  app.post(`${options.prefix}/__profile/reset`, (req, res) => {
+  app.post(`${options.prefix}/__profile/api/reset`, (_, res) => {
     resetMeasurements();
     res.send('ok');
   });

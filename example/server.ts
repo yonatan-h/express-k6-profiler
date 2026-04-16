@@ -1,6 +1,15 @@
 import express from 'express';
-import { profile, track } from '../src/main';
 import { spawn } from 'child_process';
+
+import type { profile as ProfType, track as TrackType } from '../src/main';
+
+const mod = process.env.__AS_DEV === 'true' 
+  ? require('../src/main') 
+  : require('../dist/main');
+  
+
+export const profile = mod.profile as typeof ProfType;
+export const track = mod.track as typeof TrackType;
 
 //items.js imagine itemsRouter being imported
 const itemsRouter = express.Router();
@@ -59,9 +68,10 @@ itemsRouter.use(async function handleErrors(
   res.status(500).json({ error: 'Unexpected error:' + err.message });
 });
 
-const PORT = 3000;
+const PORT = 3010;
 app.listen(PORT, () => {
   console.log(`Example app listening on http://localhost:${PORT}`);
+  console.log(`View profiler at http://localhost:${PORT}/api/__profile`);
 
   const child = spawn('k6', ['run', 'example/k6-test.js'], {
     stdio: 'inherit',
@@ -70,7 +80,7 @@ app.listen(PORT, () => {
 
   child.on('exit', async () => {
     console.log('k6 exited');
-    // console.log(await fetch(`http://localhost:${PORT}/api/__profile/json`).then((res) => res.json()));
+    console.log('RUNNING AS ' + (process.env.__AS_DEV === 'true' ? 'DEV' : 'PROD'))
     console.log('View', `http://localhost:${PORT}/api/__profile`);
   });
 });
