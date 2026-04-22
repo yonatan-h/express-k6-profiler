@@ -1,15 +1,11 @@
 import express from 'express';
 import { spawn } from 'child_process';
 
-import type { profile as ProfType, track as TrackType } from '../src/main';
+import type { profile as ProfType } from '../src/main';
 
-const mod = process.env.__AS_DEV === 'true' 
-  ? require('../src/main') 
-  : require('../dist/main');
-  
+const mod = process.env.__AS_DEV === 'true' ? require('../src/main') : require('../dist/main');
 
 export const profile = mod.profile as typeof ProfType;
-export const track = mod.track as typeof TrackType;
 
 //items.js imagine itemsRouter being imported
 const itemsRouter = express.Router();
@@ -32,12 +28,7 @@ app.get('/api/users/:id', async (req, res) => {
 });
 
 app.get('/api/orders', async function dbQuery(req, res) {
-  await track('query user', async () => await new Promise((resolve) => setTimeout(resolve, 300)));
-
-  await track(
-    'query user orders',
-    async () => await new Promise((resolve) => setTimeout(resolve, 300)),
-  );
+  await new Promise((resolve) => setTimeout(resolve, 300));
   res.json({ orders: [1, 2, 3] });
 });
 
@@ -80,9 +71,12 @@ app.listen(PORT, () => {
 
   child.on('exit', async () => {
     console.log('k6 exited');
-    console.log('RUNNING AS ' + (process.env.__AS_DEV === 'true' ? 'DEV' : 'PROD'))
+    console.log('RUNNING AS ' + (process.env.__AS_DEV === 'true' ? 'DEV' : 'PROD'));
     console.log('View', `http://localhost:${PORT}/api/__profile`);
-    console.log('Res is:', await fetch(`http://localhost:${PORT}/api/__profile/api/all`).then(res => res.json()));
+    console.log(
+      'Res is:',
+      await fetch(`http://localhost:${PORT}/api/__profile/api/all`).then((res) => res.json()),
+    );
   });
 });
 

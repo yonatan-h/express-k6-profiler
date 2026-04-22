@@ -1,19 +1,21 @@
 //biggest source of truth
 export interface Span {
-  codeId: string | null;
+  codeId: string;
 
-  name: string;
+  equivCodeSnippet: string;
   totalMs: number;
   count: number;
-  avgMs: number;
-
   hasConcurrentChildren: boolean;
   childrenKeys: string[];
 }
 
+export type SpanType = 'middleware' | 'db' | 'route-handler' | 'endpoint' | 'concurrent';
+
 export interface SpanCode {
-  type: 'middleware' | 'db' | 'route-handler' | 'endpoint';
-  file: {
+  type: SpanType;
+  equivCodeSnippet: string;
+  displayName: string;
+  file: null | {
     filePath: string;
     lineNumber: number;
     content: string;
@@ -26,12 +28,12 @@ export interface ResponseData {
 
   currentInfo: {
     cpuPercent: number;
-    requestsAtMoment: number;
+    liveRequests: number;
     memoryGB: number;
     totalMemoryGB: number;
   };
 
   spanCodes: { [globalId: string]: SpanCode };
   spans: { [key: string]: Span };
-  unhandledSpan: Span;
+  unhandledEndpoint: Span;
 }

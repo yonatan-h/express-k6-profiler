@@ -1,165 +1,151 @@
-import type { Method } from './main';
+import type { ResponseData, Span, SpanCode } from '../shared-types';
+import os from 'os';
 
-export type MeasuredType = 'route' | 'middleware' | 'tracked-fn';
-export type MeasurementItem = {
-  method: Method;
-  name: string;
-  type: MeasuredType;
-  path: string;
-  millis: number;
-};
+let measurements: ResponseData = createMeasurements();
 
-export type Measurements = Record<
-  string,
-  {
-    name: string;
-    millis: number;
-    count: number;
-    errors: Record<number, { count: number; lastMessage: string }>;
-    subMeasurements: Record<
-      string,
-      { type: MeasuredType; name: string; millis: number; count: number }
-    >;
-  }
->;
-
-type Portion = { start: number; width: number };
-
-export interface FrontendMeasurements {
-  measurements: {
-    name: string;
-    errorHighlights: string;
-    errors: { statusCode: number; count: number; lastMessage: string }[];
-    indents: number;
-    count: number;
-    averageMilis: number;
-    totalMilis: number;
-    portion: Portion;
-    excludePortion: boolean;
-    key: string;
-    parentMillis: number;
-    parentKey: string;
-    parentPortionIndex: number;
-  }[];
-  parentPortions: Portion[];
-}
-
-let measurements: Measurements = {};
-
-export function getMeasurements() {
-  return measurements;
+export function createMeasurements(): ResponseData {
+  return {
+    backendId: 'id-' + os.hostname(), //id has to stay the same after restarts for the same pod
+    currentInfo: {
+      cpuPercent: -1,
+      liveRequests: -1,
+      memoryGB: -1,
+      totalMemoryGB: -1,
+    },
+    spanCodes: {
+      '<unhandled>': {
+        type: 'endpoint',
+        equivCodeSnippet: '<unhandled>',
+        displayName: 'Unhandled endpoint',
+        file: null,
+        errors: {},
+      },
+    },
+    spans: {},
+    unhandledEndpoint: {
+      codeId: '<unhandled>',
+      equivCodeSnippet: '<unhandled>',
+      totalMs: 0,
+      count: 0,
+      hasConcurrentChildren: false,
+      childrenKeys: [],
+    },
+  };
 }
 
 export function resetMeasurements() {
-  measurements = {};
+  const requestsAtMoment = measurements.currentInfo.liveRequests;
+  measurements = createMeasurements();
+  measurements.currentInfo.liveRequests = requestsAtMoment;
 }
 
-export function convertToFrontendMeasurements(measurements: Measurements): FrontendMeasurements {
-  //sort parents
-  //sort children
-  //figure start, end of parents in a sorted way
-  //figure start, end of children in a sorted way
-  //gen error highlights of parents
-  //add indents for children
-  //add empty gaps as unknown
-  const frontMeasurements: FrontendMeasurements['measurements'] = [];
-  let totalMilis = 0;
+function genSpanKey(method: string, path: string, span: Span) {
+  return `${method}-${path}-${span.equivCodeSnippet}`; //code id is globally unique
+}
 
-  for (const parentKey in measurements) {
-    const measurement = measurements[parentKey];
-    totalMilis += measurement.millis;
+function genCodeId(spanCode: SpanCode) {
+  return `${spanCode.type}-${spanCode.file?.filePath || '<unk-path>'}-${spanCode.equivCodeSnippet}`;
+}
 
-    let errorCount = 0;
-    Object.values(measurement.errors).forEach((value) => {
-      if (value.count) errorCount += value.count;
-    });
-
-    frontMeasurements.push({
-      name: measurement.name,
-      errorHighlights: errorCount ? `${errorCount} Errors` : '',
-      errors: Object.entries(measurement.errors).map(([code, e]) => ({
-        statusCode: Number(code),
-        count: e.count,
-        lastMessage: e.lastMessage,
-      })),
-      indents: 0,
-      excludePortion: false,
-      count: measurement.count,
-      averageMilis: Math.round(measurement.millis / measurement.count),
-      totalMilis: measurement.millis,
-      parentMillis: measurement.millis,
-      key: parentKey,
-      parentKey: parentKey,
-
-      portion: { start: 0, width: 0 },
-      parentPortionIndex: -1,
-    });
-
-    for (const childKey in measurement.subMeasurements) {
-      const childMeasurement = measurement.subMeasurements[childKey];
-
-      frontMeasurements.push({
-        name: childMeasurement.name,
-        errorHighlights: '',
-        errors: [],
-        indents: 1,
-        count: childMeasurement.count,
-        averageMilis: Math.round(childMeasurement.millis / measurement.count),
-        totalMilis: childMeasurement.millis,
-        parentMillis: measurement.millis,
-        key: childKey,
-        parentKey: parentKey,
-        excludePortion: childMeasurement.type === 'tracked-fn',
-
-        portion: { start: 0, width: 0 },
-        parentPortionIndex: -1,
-      });
+export function addSpan(method: string, path: string, span: Span, spanCode: SpanCode) {
+  for (const childKey of span.childrenKeys) {
+    if (!(childKey in measurements.spans)) {
+      throw new Error('childKey not found in measurements.spans');
     }
   }
 
-  frontMeasurements.sort((m1, m2) => {
-    //sort by parentTotalMillis, then by parent id, then by excluding portions, then by indents, then by totalMillis,
-    if (m2.parentMillis !== m1.parentMillis) return m2.parentMillis - m1.parentMillis;
-    if (m2.parentKey !== m1.parentKey) return m2.parentKey.localeCompare(m1.parentKey);
-    if (m2.excludePortion !== m1.excludePortion) return m1.excludePortion ? 1 : -1;
-    if (m2.indents !== m1.indents) return m1.indents - m2.indents;
-    return m2.totalMilis - m1.totalMilis;
-  });
-
-  //fill out parent.portions
-  let currentPortion = 0;
-  const parentPortions: Portion[] = [];
-  for (let i = 0; i < frontMeasurements.length; i++) {
-    const measurement = frontMeasurements[i];
-    if (measurement.indents === 0) {
-      const width = measurement.totalMilis / totalMilis;
-      measurement.portion = { start: currentPortion, width: width };
-      parentPortions.push(measurement.portion);
-      measurement.parentPortionIndex = parentPortions.length - 1;
-      currentPortion += width;
-    }
+  if (span.count != 1) {
+    throw new Error('span.count must be 1');
   }
 
-  let currentParent: FrontendMeasurements['measurements'][0] | null = null;
-  let childrenWidth = 0;
-  for (let i = 0; i < frontMeasurements.length; i++) {
-    const measurement = frontMeasurements[i];
-    if (measurement.indents === 0) {
-      currentParent = measurement;
-      childrenWidth = 0;
-    } else {
-      if (currentParent && !measurement.excludePortion) {
-        const width = measurement.totalMilis / totalMilis;
-        measurement.portion = { start: currentParent.portion.start + childrenWidth, width: width };
-        measurement.parentPortionIndex = currentParent.parentPortionIndex;
-        childrenWidth += width;
-      } else if (measurement.excludePortion) {
-        //do nothing
-      } else {
-        console.error('child with out a parent found l');
-      }
-    }
+  const codeId = genCodeId(spanCode);
+  const spanKey = genSpanKey(method, path, span);
+
+  if (measurements.spans[spanKey]?.codeId != codeId) {
+    delete measurements.spanCodes[codeId];
   }
 
-  return { measurements: frontMeasurements, parentPortions };
+  measurements.spanCodes[codeId] = {
+    equivCodeSnippet: spanCode.equivCodeSnippet,
+    displayName: spanCode.displayName,
+    type: spanCode.type,
+    file: spanCode.file,
+    errors: spanCode.errors,
+  };
+
+  for (const errorCode of Object.keys(spanCode.errors)) {
+    if (!measurements.spanCodes[codeId].errors[errorCode]) {
+      measurements.spanCodes[codeId].errors[errorCode] = { count: 0, message: '' };
+    }
+
+    const error = measurements.spanCodes[codeId].errors[errorCode];
+
+    error.message = spanCode.errors[errorCode].message;
+    error.count++;
+  }
+
+  const aggregatedSpan:Span = measurements.spans[spanKey] || {
+    codeId,
+    equivCodeSnippet: spanCode.equivCodeSnippet,
+    totalMs: 0,
+    count: 0,
+    hasConcurrentChildren: span.hasConcurrentChildren,
+    childrenKeys: span.childrenKeys,
+  };
+
+  aggregatedSpan.totalMs += span.totalMs;
+  aggregatedSpan.count += span.count;
+  measurements.spans[spanKey] = aggregatedSpan;
+}
+
+export function addUnhandledSpan(span: Span) {
+  measurements.unhandledEndpoint.totalMs += span.totalMs;
+  measurements.unhandledEndpoint.count += span.count;
+}
+
+export function incrementLiveRequests() {
+  if (measurements.currentInfo.liveRequests === -1) {
+    measurements.currentInfo.liveRequests = 0;
+  }
+  measurements.currentInfo.liveRequests++;
+}
+
+export function decrementLiveRequests() {
+  if (measurements.currentInfo.liveRequests === -1) {
+    measurements.currentInfo.liveRequests = 0;
+  }
+  measurements.currentInfo.liveRequests--;
+}
+
+async function getGeneralStatus() {
+  const startUsage = process.cpuUsage(); // user: nanoseconds; system: nanoseconds;
+  const startTime = process.hrtime(); // [seconds, nanoseconds]
+
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  const { user: diffUserNano, system: diffSystemNano } = process.cpuUsage(startUsage);
+  const [diffS, diffNano] = process.hrtime(startTime);
+
+  const elapsedMicros = diffS * 1_000_000 + diffNano / 1_000;
+  const cpuMicros = diffUserNano + diffSystemNano;
+
+  const cpuPercent = (cpuMicros / elapsedMicros) * 100;
+
+  const unusedBytes = os.freemem();
+  const totalBytes = os.totalmem();
+  const usedBytes = totalBytes - unusedBytes;
+
+  return {
+    cpuPercent: Number(cpuPercent.toFixed(2)),
+    memoryGB: Number((usedBytes / 1024 ** 3).toFixed(2)),
+    totalMemoryGB: Number((totalBytes / 1024 ** 3).toFixed(2)),
+  };
+}
+
+export async function getMeasurements() {
+  const { cpuPercent, memoryGB, totalMemoryGB } = await getGeneralStatus();
+  measurements.currentInfo.cpuPercent = cpuPercent;
+  measurements.currentInfo.memoryGB = memoryGB;
+  measurements.currentInfo.totalMemoryGB = totalMemoryGB;
+  return measurements;
 }
