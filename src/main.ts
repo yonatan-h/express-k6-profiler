@@ -2,10 +2,15 @@ import { Application, NextFunction, Request, Response } from 'express';
 import { getMeasurements, resetMeasurements } from './measurement';
 import path from 'path';
 import fs from 'fs/promises';
-import { storage } from './async-storage';
 import { wrapRouter } from './wrap';
+import { addEntry, createEntrySlot, getEntries, runWithStorage } from './async-storage';
+import { measuringMiddleware } from './measuring-middleware';
 
-export function profile(app: Application, options: { prefix: string } = { prefix: '' }) {
+export interface KRayOptions {
+  prefix: string;
+}
+
+function addProfilerEndponts(app: Application, options: KRayOptions) {
   app.get(`${options.prefix}/__profile/api/all`, (_, res) => {
     res.json(getMeasurements());
   });
@@ -39,20 +44,17 @@ export function profile(app: Application, options: { prefix: string } = { prefix
     resetMeasurements();
     res.send('ok');
   });
+}
 
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const begin = Date.now();
-    const store = { entries: [] };
-    storage.run(store, () => {
-      res.on('finish', () => {});
-
-      next();
-    });
-  });
-
+export function profile(app: Application, options: KRayOptions = { prefix: '' }) {
   const oldListen = app.listen.bind(app);
+  app.use(measuringMiddleware);
+
   app.listen = (...args: any[]) => {
-    wrapRouter(app, '');
+    addProfilerEndponts(app, options);
+    wrapRouter(app.router, '');
+
+    //registered after wrapRouter so it's excluded from wrapping (no storage context needed)
     return oldListen(...args);
   };
   console.log(

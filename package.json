@@ -14,7 +14,7 @@
     "dev:ui": "cd ui && npm run dev",
     "build:ui": "cd ui && npm install && npm run build",
     "prepublishOnly": "npm run build",
-    "dev": "concurrently -n \"SVR,UI \" \"npm --prefix ui run dev\" \"cross-env __AS_DEV=true nodemon example/server.ts\"",
+    "dev": "concurrently -n \"UI ,SVR\" \"npm --prefix ui run dev\" \"cross-env __AS_DEV=true nodemon example/server.ts\"",
     "build": "npm run build:ui && tsc && cp ui/dist/index.html dist/index.html",
     "prod": "npm run build && ts-node example/server.ts"
   },

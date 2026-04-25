@@ -4,8 +4,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import type { NextFunction, Request, Response, RequestHandler, Application, Router } from 'express';
 import { Span, SpanCode, SpanType } from '../shared-types';
-import { ILayer } from 'express-serve-static-core';
-import { storage } from './async-storage';
+import { addEntry, createEntrySlot } from './async-storage';
 
 const Methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
 export type Method = null | (typeof Methods)[number];
@@ -15,10 +14,10 @@ type HandlerInfo = {
   index: number;
   handler: RequestHandler;
   file: SpanCode['file'];
+  subPath: string;
 };
 
 const isOk = (code: number) => code < 400;
-
 
 const measureHandler = (
   begin: number,
@@ -26,15 +25,10 @@ const measureHandler = (
   resArgs: unknown[],
   nextArgs: unknown[],
   hasEnded: [boolean],
-  { handler, spanType, index, file }: HandlerInfo,
+  slotIndex: number,
+  { handler, spanType, index, file, subPath }: HandlerInfo,
 ) => {
   if (hasEnded[0]) {
-    console.error('has ended 2X');
-    return;
-  }
-  const store = storage.getStore();
-  if (!store) {
-    console.error('storage not found');
     return;
   }
 
@@ -50,7 +44,9 @@ const measureHandler = (
     errorMessage = JSON.stringify(resArgs[0]);
   }
 
-  store.entries.push({
+  // console.log(getSpanCode());
+
+  addEntry(slotIndex, {
     code: null,
     startMs: begin,
     endMs: Date.now(),
@@ -59,12 +55,15 @@ const measureHandler = (
     errorCode,
     errorMessage,
     spanType,
-    file: file,
+    file,
+    subPath,
   });
 };
 
 function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandler {
-  let hasEnded: [boolean] = [false];
+  if ((handler as unknown as { __kraySkipWrap?: boolean }).__kraySkipWrap) {
+    return handler;
+  }
 
   const wrapper: RequestHandler = (...args: any[]) => {
     let err: any, req: Request, res: Response, next: NextFunction, otherArgs: any[];
@@ -73,21 +72,27 @@ function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandle
     else [req, res, next, ...otherArgs] = args;
 
     const begin = Date.now();
+    const hasEnded: [boolean] = [false];
+    const slotIndex = createEntrySlot();
+
+    (res as any).__count = 0;
 
     const oldResJson = res.json.bind(res);
+    //TODO: results in super nested .json methods
     res.json = (...args: any[]) => {
-      measureHandler(begin, res, args, [], hasEnded, hInfo);
+      measureHandler(begin, res, args, [], hasEnded, slotIndex, hInfo);
       return oldResJson(...args);
     };
 
+    //TODO: results in super nested .send methods
     const oldResSend = res.send.bind(res);
     res.send = (...args: any[]) => {
-      measureHandler(begin, res, args, [], hasEnded, hInfo);
+      measureHandler(begin, res, args, [], hasEnded, slotIndex, hInfo);
       return oldResSend(...args);
     };
 
     const newNext = (...nextArgs: any[]) => {
-      measureHandler(begin, res, [], nextArgs, hasEnded, hInfo);
+      measureHandler(begin, res, [], nextArgs, hasEnded, slotIndex, hInfo);
       return next(...nextArgs);
     };
     if (args.length === 4) args[3] = newNext;
@@ -100,7 +105,7 @@ function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandle
 }
 
 /**
- * Reference data structure
+ * Reference data structure of 'router'
  *Layer.route = {
   path: '/users',
   stack: [
@@ -117,15 +122,11 @@ function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandle
 }/
 */
 
-export function wrapRouter(router: Router, currentPath: string) {
+export function wrapRouter(router: Router, prefixPath: string) {
   for (const layer of router.stack) {
+    //says router.stack is not iterable
     if (layer.route) {
-      //is a get/post/middleware + route
-      const stack = layer.route.stack;
-
-      if (!layer.route?.path === undefined) {
-        console.error('layer.route.path is not defined');
-      }
+      const stack = layer.route.stack; //is  ...[middleware, route-handler]
 
       for (let i = 0; i < layer.route.stack.length; i++) {
         const innerLayer = layer.route.stack[i];
@@ -148,23 +149,24 @@ export function wrapRouter(router: Router, currentPath: string) {
         } else {
           spanType = 'middleware';
         }
-        innerLayer.handle = wrapHandler(innerLayer.handle, {
+        innerLayer.handle = wrapHandler(handler, {
           spanType,
           index: i,
           handler,
           file: null,
+          subPath: layer.route.path,
         });
       }
-    } else if (layer.name === 'router' && Array.isArray((layer.handle as any).stack)) {
-      //not sure if is a reliable indicator of routers
-      wrapRouter(layer.handle as Router, currentPath + (layer.path || ''));
+    } else if (Array.isArray((layer.handle as Router).stack)) {
+      wrapRouter(layer.handle as Router, prefixPath + layer.path);
     } else if (typeof layer.handle === 'function') {
-      //is a middleware
+      //is a middleware, put as app.use probably
       layer.handle = wrapHandler(layer.handle, {
         spanType: 'middleware',
         index: 0,
         handler: layer.handle,
         file: null,
+        subPath: prefixPath,
       });
     }
   }

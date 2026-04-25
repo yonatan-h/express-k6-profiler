@@ -47,7 +47,7 @@ itemsRouter.post('/deep', (req, res) => {
 
 itemsRouter.get('/exclusive', async (req, res) => {
   await new Promise((resolve) => setTimeout(resolve, 20));
-  throw new Error('can not query exclusive items');
+  throw new Error('my error in endpoin');
 });
 itemsRouter.use(async function handleErrors(
   err: Error,
@@ -65,7 +65,7 @@ app.listen(PORT, () => {
   console.log(`View profiler at http://localhost:${PORT}/api/__profile`);
 
   const child = spawn('k6', ['run', 'example/k6-test.js'], {
-    stdio: 'inherit',
+    // stdio: 'inherit',
     shell: true,
   });
 
