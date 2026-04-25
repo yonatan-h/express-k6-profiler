@@ -1,18 +1,16 @@
-import { Application, NextFunction, Request, Response } from 'express';
-import { getMeasurements, resetMeasurements } from './measurement';
+import { Application} from 'express';
+import { getMeasurements, measuringMiddleware, resetMeasurements } from './measurement';
 import path from 'path';
 import fs from 'fs/promises';
 import { wrapRouter } from './wrap';
-import { addEntry, createEntrySlot, getEntries, runWithStorage } from './async-storage';
-import { measuringMiddleware } from './measuring-middleware';
 
 export interface KRayOptions {
   prefix: string;
 }
 
 function addProfilerEndponts(app: Application, options: KRayOptions) {
-  app.get(`${options.prefix}/__profile/api/all`, (_, res) => {
-    res.json(getMeasurements());
+  app.get(`${options.prefix}/__profile/api/all`, async (_, res) => {
+    res.json(await getMeasurements());
   });
 
   app.get(`${options.prefix}/__profile`, async (_, res) => {

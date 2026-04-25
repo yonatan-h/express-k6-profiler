@@ -1,10 +1,6 @@
-import { AsyncLocalStorage } from 'async_hooks';
-import { getMeasurements, resetMeasurements } from './measurement';
-import path from 'path';
-import fs from 'fs/promises';
 import type { NextFunction, Request, Response, RequestHandler, Application, Router } from 'express';
-import { Span, SpanCode, SpanType } from '../shared-types';
-import { addEntry, createEntrySlot } from './async-storage';
+import { SpanCode, SpanType } from '../shared-types';
+import { addEntry } from './async-storage';
 
 const Methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
 export type Method = null | (typeof Methods)[number];
@@ -25,7 +21,6 @@ const measureHandler = (
   resArgs: unknown[],
   nextArgs: unknown[],
   hasEnded: [boolean],
-  slotIndex: number,
   { handler, spanType, index, file, subPath }: HandlerInfo,
 ) => {
   if (hasEnded[0]) {
@@ -46,12 +41,10 @@ const measureHandler = (
 
   // console.log(getSpanCode());
 
-  addEntry(slotIndex, {
-    code: null,
+  addEntry({
     startMs: begin,
     endMs: Date.now(),
     evalCodeSnippet: evalCodeSnippet,
-    displayName,
     errorCode,
     errorMessage,
     spanType,
@@ -73,26 +66,25 @@ function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandle
 
     const begin = Date.now();
     const hasEnded: [boolean] = [false];
-    const slotIndex = createEntrySlot();
 
     (res as any).__count = 0;
 
     const oldResJson = res.json.bind(res);
     //TODO: results in super nested .json methods
     res.json = (...args: any[]) => {
-      measureHandler(begin, res, args, [], hasEnded, slotIndex, hInfo);
+      measureHandler(begin, res, args, [], hasEnded, hInfo);
       return oldResJson(...args);
     };
 
     //TODO: results in super nested .send methods
     const oldResSend = res.send.bind(res);
     res.send = (...args: any[]) => {
-      measureHandler(begin, res, args, [], hasEnded, slotIndex, hInfo);
+      measureHandler(begin, res, args, [], hasEnded, hInfo);
       return oldResSend(...args);
     };
 
     const newNext = (...nextArgs: any[]) => {
-      measureHandler(begin, res, [], nextArgs, hasEnded, slotIndex, hInfo);
+      measureHandler(begin, res, [], nextArgs, hasEnded, hInfo);
       return next(...nextArgs);
     };
     if (args.length === 4) args[3] = newNext;

@@ -5,8 +5,6 @@ export interface Span {
   equivCodeSnippet: string;
   totalMs: number;
   count: number;
-  hasConcurrentChildren: boolean;
-  childrenKeys: string[];
 }
 
 export type SpanType = 'middleware' | 'db' | 'route-handler' | 'endpoint' | 'concurrent';
@@ -23,6 +21,15 @@ export interface SpanCode {
   errors: { [code: string]: { count: number; message: string } }; //meant for endpoints only
 }
 
+export interface HandlerData {
+  span: Span;
+  concDbCalls: Record<
+    string,
+    {
+      dbCalls: Record<string, Span>;
+    }
+  >;
+}
 export interface ResponseData {
   backendId: string;
 
@@ -33,7 +40,14 @@ export interface ResponseData {
     totalMemoryGB: number;
   };
 
-  spanCodes: { [globalId: string]: SpanCode };
-  spans: { [key: string]: Span };
-  unhandledEndpoint: Span;
+  spanCodes: Record<string, SpanCode>;
+
+  endpoints: Record<
+    string,
+    {
+      span: Span;
+      middleWares: Record<string, HandlerData>;
+      routeHandler: HandlerData;
+    }
+  >;
 }

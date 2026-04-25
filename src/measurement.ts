@@ -1,120 +1,31 @@
-import type { ResponseData, Span, SpanCode } from '../shared-types';
+import { Request, Response, NextFunction } from 'express';
+import { getEntries, StorageEntry } from './async-storage';
+import type { HandlerData, ResponseData, Span, SpanCode } from '../shared-types';
 import os from 'os';
+import { addEntry, runWithStorage } from './async-storage';
 
 let measurements: ResponseData = createMeasurements();
 
 export function createMeasurements(): ResponseData {
-  return {
+  const data: ResponseData = {
     backendId: 'id-' + os.hostname(), //id has to stay the same after restarts for the same pod
     currentInfo: {
-      cpuPercent: -1,
-      liveRequests: -1,
-      memoryGB: -1,
-      totalMemoryGB: -1,
+      cpuPercent: 0,
+      liveRequests: 0,
+      memoryGB: 0,
+      totalMemoryGB: 0,
     },
-    spanCodes: {
-      '<unhandled>': {
-        type: 'endpoint',
-        equivCodeSnippet: '<unhandled>',
-        displayName: 'Unhandled endpoint',
-        file: null,
-        errors: {},
-      },
-    },
-    spans: {},
-    unhandledEndpoint: {
-      codeId: '<unhandled>',
-      equivCodeSnippet: '<unhandled>',
-      totalMs: 0,
-      count: 0,
-      hasConcurrentChildren: false,
-      childrenKeys: [],
-    },
+    endpoints: {},
+    spanCodes: {},
   };
+
+  return data;
 }
 
 export function resetMeasurements() {
   const requestsAtMoment = measurements.currentInfo.liveRequests;
   measurements = createMeasurements();
   measurements.currentInfo.liveRequests = requestsAtMoment;
-}
-
-function genSpanKey(method: string, path: string, span: Span) {
-  return `${method}-${path}-${span.equivCodeSnippet}`; //code id is globally unique
-}
-
-function genCodeId(spanCode: SpanCode) {
-  return `${spanCode.type}-${spanCode.file?.filePath || '<unk-path>'}-${spanCode.equivCodeSnippet}`;
-}
-
-export function addSpan(method: string, path: string, span: Span, spanCode: SpanCode) {
-  for (const childKey of span.childrenKeys) {
-    if (!(childKey in measurements.spans)) {
-      throw new Error('childKey not found in measurements.spans');
-    }
-  }
-
-  if (span.count != 1) {
-    throw new Error('span.count must be 1');
-  }
-
-  const codeId = genCodeId(spanCode);
-  const spanKey = genSpanKey(method, path, span);
-
-  if (measurements.spans[spanKey]?.codeId != codeId) {
-    delete measurements.spanCodes[codeId];
-  }
-
-  measurements.spanCodes[codeId] = {
-    equivCodeSnippet: spanCode.equivCodeSnippet,
-    displayName: spanCode.displayName,
-    type: spanCode.type,
-    file: spanCode.file,
-    errors: spanCode.errors,
-  };
-
-  for (const errorCode of Object.keys(spanCode.errors)) {
-    if (!measurements.spanCodes[codeId].errors[errorCode]) {
-      measurements.spanCodes[codeId].errors[errorCode] = { count: 0, message: '' };
-    }
-
-    const error = measurements.spanCodes[codeId].errors[errorCode];
-
-    error.message = spanCode.errors[errorCode].message;
-    error.count++;
-  }
-
-  const aggregatedSpan:Span = measurements.spans[spanKey] || {
-    codeId,
-    equivCodeSnippet: spanCode.equivCodeSnippet,
-    totalMs: 0,
-    count: 0,
-    hasConcurrentChildren: span.hasConcurrentChildren,
-    childrenKeys: span.childrenKeys,
-  };
-
-  aggregatedSpan.totalMs += span.totalMs;
-  aggregatedSpan.count += span.count;
-  measurements.spans[spanKey] = aggregatedSpan;
-}
-
-export function addUnhandledSpan(span: Span) {
-  measurements.unhandledEndpoint.totalMs += span.totalMs;
-  measurements.unhandledEndpoint.count += span.count;
-}
-
-export function incrementLiveRequests() {
-  if (measurements.currentInfo.liveRequests === -1) {
-    measurements.currentInfo.liveRequests = 0;
-  }
-  measurements.currentInfo.liveRequests++;
-}
-
-export function decrementLiveRequests() {
-  if (measurements.currentInfo.liveRequests === -1) {
-    measurements.currentInfo.liveRequests = 0;
-  }
-  measurements.currentInfo.liveRequests--;
 }
 
 async function getGeneralStatus() {
@@ -149,3 +60,176 @@ export async function getMeasurements() {
   measurements.currentInfo.totalMemoryGB = totalMemoryGB;
   return measurements;
 }
+
+function genCodeId(storageEntry: StorageEntry) {
+  return `${storageEntry.spanType}-${storageEntry.file?.filePath || '<unk-path>'}-${storageEntry.evalCodeSnippet}`;
+}
+
+function defaultSpan() {
+  const data: Span = {
+    codeId: '',
+    equivCodeSnippet: '',
+    totalMs: 0,
+    count: 0,
+  };
+  return data;
+}
+
+function defaultHandlerData() {
+  const data: HandlerData = {
+    span: defaultSpan(),
+    concDbCalls: {},
+  };
+  return data;
+}
+
+function defaultEndpointData() {
+  const data: ResponseData['endpoints'][string] = {
+    span: defaultSpan(),
+    middleWares: {},
+    routeHandler: defaultHandlerData(),
+  };
+  return data;
+}
+
+function defaultSpanCode() {
+  const data: ResponseData['spanCodes'][string] = {
+    type: 'endpoint',
+    equivCodeSnippet: '',
+    displayName: '',
+    file: null,
+    errors: {},
+  };
+  return data;
+}
+
+export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]) {
+  if (endpointEntry.spanType !== 'endpoint') {
+    return console.error('endpointEntry must be of type endpoint');
+  }
+
+  for (const entry of [endpointEntry, ...entries]) {
+    const codeId = genCodeId(entry);
+    measurements.spanCodes[codeId] ??= defaultSpanCode();
+    const spanCode = measurements.spanCodes[codeId];
+    spanCode.type = entry.spanType;
+    spanCode.equivCodeSnippet = entry.evalCodeSnippet;
+  }
+
+  //add endpoint
+  measurements.endpoints[endpointEntry.subPath] ??= defaultEndpointData();
+  const endpointData = measurements.endpoints[endpointEntry.subPath];
+  endpointData.span.codeId = genCodeId(endpointEntry);
+  endpointData.span.equivCodeSnippet = endpointEntry.evalCodeSnippet;
+  endpointData.span.totalMs = 0;
+  endpointData.span.count = 0;
+
+  //merge db intervals
+  const events: Record<number, { starts: StorageEntry[]; ends: StorageEntry[] }> = {};
+  for (const entry of entries) {
+    if (entry.spanType === 'db') {
+      events[entry.startMs] = events[entry.startMs] || { starts: [], ends: [] };
+      events[entry.endMs] = events[entry.endMs] || { starts: [], ends: [] };
+
+      events[entry.startMs].starts.push(entry);
+      events[entry.startMs].ends.push(entry);
+    }
+  }
+
+  const mergedDbs: { startMs: number; endMs: number; entries: StorageEntry[] }[] = []; //already sorted by start time
+  let stackLength = 0;
+  let merged: StorageEntry[] = [];
+  const times = Object.keys(events)
+    .map((x) => +x)
+    .sort((a, b) => a - b);
+
+  for (const time of times) {
+    const { starts, ends } = events[time];
+
+    stackLength -= ends.length;
+    if (stackLength === 0 && merged.length > 0) {
+      mergedDbs.push({ startMs: merged[0].startMs, endMs: time, entries: merged });
+      merged = [];
+    }
+
+    merged.push(...starts);
+    stackLength += starts.length;
+  }
+
+  let mergedI = 0;
+  for (const entry of entries) {
+    if (entry.spanType === 'route-handler' || entry.spanType === 'middleware') {
+      const nestedDbs: { startMs: number; endMs: number; entries: StorageEntry[] }[] = [];
+      while (
+        mergedI < mergedDbs.length &&
+        mergedDbs[mergedI].startMs >= entry.startMs &&
+        mergedDbs[mergedI].endMs <= entry.endMs
+      ) {
+        nestedDbs.push(mergedDbs[mergedI]);
+        mergedI++;
+      }
+
+      let handlerData: HandlerData;
+      if (entry.spanType === 'route-handler') {
+        handlerData = endpointData.routeHandler;
+      } else {
+        endpointData.middleWares[entry.evalCodeSnippet] ??= defaultHandlerData();
+        handlerData = endpointData.middleWares[entry.evalCodeSnippet];
+      }
+
+      handlerData.span.equivCodeSnippet = entry.evalCodeSnippet;
+      handlerData.span.codeId = genCodeId(entry);
+      handlerData.span.totalMs += entry.endMs - entry.startMs;
+      handlerData.span.count++;
+
+      for (const nestedDb of nestedDbs) {
+        const concDbKey = nestedDb.entries
+          .map((e) => e.evalCodeSnippet)
+          .sort()
+          .join('_');
+        handlerData.concDbCalls[concDbKey] ??= {
+          dbCalls: {},
+        };
+        for (const dbEntry of nestedDb.entries) {
+          const dbCodeId = genCodeId(dbEntry);
+          const dbKey = dbEntry.evalCodeSnippet;
+          handlerData.concDbCalls[concDbKey].dbCalls[dbKey] ??= defaultSpan();
+          const span = handlerData.concDbCalls[concDbKey].dbCalls[dbKey];
+          span.totalMs += dbEntry.endMs - dbEntry.startMs;
+          span.count++;
+          span.codeId = dbCodeId;
+          span.equivCodeSnippet = dbEntry.evalCodeSnippet;
+        }
+      }
+    }
+  }
+
+  if (mergedI !== mergedDbs.length) {
+    console.error('Error: Not all db intervals were nested under middlewares or route-handlers');
+    return;
+  }
+}
+
+export const measuringMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const begin = Date.now();
+  measurements.currentInfo.liveRequests++;
+  runWithStorage(() => {
+    next();
+    res.on('finish', () => {
+      measurements.currentInfo.liveRequests--;
+      const endPointEntry: StorageEntry = {
+        startMs: begin,
+        endMs: Date.now(),
+        evalCodeSnippet: `${req.path}()`,
+        errorCode: undefined,
+        errorMessage: '',
+        spanType: 'endpoint',
+        file: null,
+        subPath: '',
+      };
+
+      saveEntries(endPointEntry, getEntries());
+    });
+  });
+};
+measuringMiddleware.__kraySkipWrap = true;
