@@ -23,12 +23,7 @@ export interface SpanCode {
 
 export interface HandlerData {
   span: Span;
-  concDbCalls: Record<
-    string,
-    {
-      dbCalls: Record<string, Span>;
-    }
-  >;
+  concDbCalls: Record<string, Record<string, Span>>;
 }
 export interface ResponseData {
   backendId: string;

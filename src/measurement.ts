@@ -65,42 +65,15 @@ function genCodeId(storageEntry: StorageEntry) {
   return `${storageEntry.spanType}-${storageEntry.file?.filePath || '<unk-path>'}-${storageEntry.evalCodeSnippet}`;
 }
 
-function defaultSpan() {
-  const data: Span = {
-    codeId: '',
-    equivCodeSnippet: '',
-    totalMs: 0,
-    count: 0,
-  };
-  return data;
+function makeSpan(): Span {
+  return { codeId: '', equivCodeSnippet: '', totalMs: 0, count: 0 };
 }
 
-function defaultHandlerData() {
-  const data: HandlerData = {
-    span: defaultSpan(),
-    concDbCalls: {},
-  };
-  return data;
-}
-
-function defaultEndpointData() {
-  const data: ResponseData['endpoints'][string] = {
-    span: defaultSpan(),
-    middleWares: {},
-    routeHandler: defaultHandlerData(),
-  };
-  return data;
-}
-
-function defaultSpanCode() {
-  const data: ResponseData['spanCodes'][string] = {
-    type: 'endpoint',
-    equivCodeSnippet: '',
-    displayName: '',
-    file: null,
-    errors: {},
-  };
-  return data;
+function updateSpan(span: Span, entry: StorageEntry) {
+  span.codeId = genCodeId(entry);
+  span.equivCodeSnippet = entry.evalCodeSnippet;
+  span.totalMs += entry.endMs - entry.startMs;
+  span.count++;
 }
 
 export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]) {
@@ -108,105 +81,95 @@ export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]
     return console.error('endpointEntry must be of type endpoint');
   }
 
+  // upsert spanCodes for all entries
   for (const entry of [endpointEntry, ...entries]) {
     const codeId = genCodeId(entry);
-    measurements.spanCodes[codeId] ??= defaultSpanCode();
-    const spanCode = measurements.spanCodes[codeId];
-    spanCode.type = entry.spanType;
-    spanCode.equivCodeSnippet = entry.evalCodeSnippet;
+    measurements.spanCodes[codeId] ??= {
+      type: entry.spanType,
+      equivCodeSnippet: entry.evalCodeSnippet,
+      displayName: '',
+      file: entry.file,
+      errors: {},
+    };
   }
 
-  //add endpoint
-  measurements.endpoints[endpointEntry.subPath] ??= defaultEndpointData();
+  // upsert & aggregate endpoint span
+  measurements.endpoints[endpointEntry.subPath] ??= {
+    span: makeSpan(),
+    middleWares: {},
+    routeHandler: { span: makeSpan(), concDbCalls: {} },
+  };
   const endpointData = measurements.endpoints[endpointEntry.subPath];
-  endpointData.span.codeId = genCodeId(endpointEntry);
-  endpointData.span.equivCodeSnippet = endpointEntry.evalCodeSnippet;
-  endpointData.span.totalMs = 0;
-  endpointData.span.count = 0;
+  updateSpan(endpointData.span, endpointEntry);
 
-  //merge db intervals
+  // merge overlapping concurrent db intervals into groups
   const events: Record<number, { starts: StorageEntry[]; ends: StorageEntry[] }> = {};
   for (const entry of entries) {
     if (entry.spanType === 'db') {
-      events[entry.startMs] = events[entry.startMs] || { starts: [], ends: [] };
-      events[entry.endMs] = events[entry.endMs] || { starts: [], ends: [] };
-
-      events[entry.startMs].starts.push(entry);
-      events[entry.startMs].ends.push(entry);
+      events[entry.startMs] ??= { starts: [], ends: [] };
+      events[entry.endMs] ??= { starts: [], ends: [] };
+      events[entry.startMs].starts.push(entry); // bug fix: endMs goes to ends, not starts
+      events[entry.endMs].ends.push(entry);
     }
   }
 
-  const mergedDbs: { startMs: number; endMs: number; entries: StorageEntry[] }[] = []; //already sorted by start time
+  const mergedDbs: { startMs: number; endMs: number; entries: StorageEntry[] }[] = [];
   let stackLength = 0;
   let merged: StorageEntry[] = [];
-  const times = Object.keys(events)
-    .map((x) => +x)
-    .sort((a, b) => a - b);
-
-  for (const time of times) {
+  for (const time of Object.keys(events)
+    .map(Number)
+    .sort((a, b) => a - b)) {
     const { starts, ends } = events[time];
-
     stackLength -= ends.length;
     if (stackLength === 0 && merged.length > 0) {
       mergedDbs.push({ startMs: merged[0].startMs, endMs: time, entries: merged });
       merged = [];
     }
-
     merged.push(...starts);
     stackLength += starts.length;
   }
 
+  // assign each handler its nested db groups
   let mergedI = 0;
   for (const entry of entries) {
-    if (entry.spanType === 'route-handler' || entry.spanType === 'middleware') {
-      const nestedDbs: { startMs: number; endMs: number; entries: StorageEntry[] }[] = [];
-      while (
-        mergedI < mergedDbs.length &&
-        mergedDbs[mergedI].startMs >= entry.startMs &&
-        mergedDbs[mergedI].endMs <= entry.endMs
-      ) {
-        nestedDbs.push(mergedDbs[mergedI]);
-        mergedI++;
-      }
+    if (entry.spanType !== 'route-handler' && entry.spanType !== 'middleware') continue;
 
-      let handlerData: HandlerData;
-      if (entry.spanType === 'route-handler') {
-        handlerData = endpointData.routeHandler;
-      } else {
-        endpointData.middleWares[entry.evalCodeSnippet] ??= defaultHandlerData();
-        handlerData = endpointData.middleWares[entry.evalCodeSnippet];
-      }
+    const nestedDbs: typeof mergedDbs = [];
+    while (
+      mergedI < mergedDbs.length &&
+      mergedDbs[mergedI].startMs >= entry.startMs &&
+      mergedDbs[mergedI].endMs <= entry.endMs
+    ) {
+      nestedDbs.push(mergedDbs[mergedI++]);
+    }
 
-      handlerData.span.equivCodeSnippet = entry.evalCodeSnippet;
-      handlerData.span.codeId = genCodeId(entry);
-      handlerData.span.totalMs += entry.endMs - entry.startMs;
-      handlerData.span.count++;
+    if (entry.spanType === 'route-handler') {
+      updateSpan(endpointData.routeHandler.span, entry);
+    } else {
+      endpointData.middleWares[entry.evalCodeSnippet] ??= { span: makeSpan(), concDbCalls: {} };
+    }
+    const handlerData =
+      entry.spanType === 'route-handler'
+        ? endpointData.routeHandler
+        : endpointData.middleWares[entry.evalCodeSnippet];
 
-      for (const nestedDb of nestedDbs) {
-        const concDbKey = nestedDb.entries
-          .map((e) => e.evalCodeSnippet)
-          .sort()
-          .join('_');
-        handlerData.concDbCalls[concDbKey] ??= {
-          dbCalls: {},
-        };
-        for (const dbEntry of nestedDb.entries) {
-          const dbCodeId = genCodeId(dbEntry);
-          const dbKey = dbEntry.evalCodeSnippet;
-          handlerData.concDbCalls[concDbKey].dbCalls[dbKey] ??= defaultSpan();
-          const span = handlerData.concDbCalls[concDbKey].dbCalls[dbKey];
-          span.totalMs += dbEntry.endMs - dbEntry.startMs;
-          span.count++;
-          span.codeId = dbCodeId;
-          span.equivCodeSnippet = dbEntry.evalCodeSnippet;
-        }
+    if (entry.spanType === 'middleware') updateSpan(handlerData.span, entry);
+
+    for (const nestedDb of nestedDbs) {
+      const concDbKey = nestedDb.entries
+        .map((e) => e.evalCodeSnippet)
+        .sort()
+        .join('_');
+      handlerData.concDbCalls[concDbKey] ??= {};
+      for (const dbEntry of nestedDb.entries) {
+        handlerData.concDbCalls[concDbKey][dbEntry.evalCodeSnippet] ??= makeSpan();
+        updateSpan(handlerData.concDbCalls[concDbKey][dbEntry.evalCodeSnippet], dbEntry);
       }
     }
   }
 
   if (mergedI !== mergedDbs.length) {
     console.error('Error: Not all db intervals were nested under middlewares or route-handlers');
-    return;
   }
 }
 
