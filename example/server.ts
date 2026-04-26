@@ -18,7 +18,7 @@ const app = express();
 profile(app, { prefix: '/api' });
 
 app.use(async function authUsers(req, res, next) {
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await new Promise((resolve) => setTimeout(resolve, 5));
   next();
 });
 
@@ -30,7 +30,7 @@ app.get('/api/users/:id', async (req, res) => {
 app.get(
   '/api/orders',
   async function orderSpecificMdl(req, res, next) {
-    await new Promise((resolve) => setTimeout(resolve, 33));
+    await new Promise((resolve) => setTimeout(resolve, 3));
     next();
   },
 
