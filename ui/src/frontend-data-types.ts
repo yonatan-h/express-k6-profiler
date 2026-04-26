@@ -1,47 +1,66 @@
 //frontend visualization changes start here
-
 export interface ChartCode {
   filePath: string;
   lineNumber: number;
   content: string;
 }
+
+export type ChartSpanType = 'middleware' | 'db' | 'concurrent-db' | 'route-handler' | 'other';
 export interface ChartSpan {
-  name: string;
-  type: 'middleware' | 'db' | 'concurrent-db' | 'other';
-  hidden: boolean;
-  avgMs: number;
-  code: ChartCode | null;
   codeId: string;
+  name: string;
+  type: ChartSpanType;
+  avgMs: number;
+  totalLatencyMs: number;
+  count: number;
 }
 
-export interface LatenyContributors {
+export interface LatenyContributor {
   codeId: string;
-  hidden: boolean;
+  name: string;
+
+  avgMs: number;
+  type: ChartSpanType;
+  totalLatencyMs: number;
+  count: number;
+
   code: ChartCode | null;
-  subContributors: LatenyContributors[];
+  subContributors: LatenyContributor[];
+}
+
+export interface ChartEndpoint {
+  totalRequests: number;
+  totalMs: number;
+  lantencyContribution: number;
+  method: string;
+  path: string;
+  errors: { [code: string]: { count: number; message: string } };
+  spans: ChartSpan[];
 }
 export interface ChartData {
-  requestAtMoments: { timeMs: number; currentRequests: number }[];
   currentInfos: {
-    requestsAtMoment: number;
-    backendId: string;
-    cpuPercent: number;
-    memoryPercent: number;
-    totalMemoryGB: number;    
-  }[];
+    [backendId: string]: {
+      backendId: string;
+      requestsAtMoment: number;
+      cpuPercent: number;
+      memoryPercent: number;
+      totalMemoryGB: number;
+    };
+  };
 
-  avgLatencyMs: number;
-  prevAvgLatencyMS: number;
+  totalLatency: number;
+  totalRequests: number;
+  latency: number;
+
+  prevTotalLatency: number;
+  prevTotalRequests: number;
+  prevLatency: number;
 
   endPoints: {
-    totalRequests: number;
-    method: string;
-    path: string;
-    code: ChartCode;
-    errors: { [code: string]: { count: number; message: string } };
-    subSpans: ChartSpan[];
-    prevSubSpans: null | ChartSpan[];
+    hidden: boolean;
+    current: ChartEndpoint | null;
+    prev: ChartEndpoint | null;
   }[];
 
-  contributors: LatenyContributors[];
+  contributors: { hidden: boolean; current: LatenyContributor; prev: LatenyContributor | null }[];
 }

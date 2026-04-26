@@ -1,3 +1,6 @@
+const Methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
+export type Method = null | (typeof Methods)[number];
+
 //biggest source of truth
 export interface Span {
   codeId: string;
@@ -23,7 +26,13 @@ export interface SpanCode {
 
 export interface HandlerData {
   span: Span;
-  concDbCalls: Record<string, Record<string, Span>>;
+  concDbCalls: Record<
+    string,
+    {
+      span: Span;
+      dbCalls: Record<string, Span>;
+    }
+  >;
 }
 export interface ResponseData {
   backendId: string;
@@ -40,6 +49,8 @@ export interface ResponseData {
   endpoints: Record<
     string,
     {
+      method: Method;
+      path: string;
       span: Span;
       middleWares: Record<string, HandlerData>;
       routeHandler: HandlerData;

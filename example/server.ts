@@ -27,10 +27,18 @@ app.get('/api/users/:id', async (req, res) => {
   res.json({ user: 'Bob' });
 });
 
-app.get('/api/orders', async function dbQuery(req, res) {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  res.json({ orders: [1, 2, 3] });
-});
+app.get(
+  '/api/orders',
+  async function orderSpecificMdl(req, res, next) {
+    await new Promise((resolve) => setTimeout(resolve, 33));
+    next();
+  },
+
+  async function dbQuery(req, res) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    res.json({ orders: [1, 2, 3] });
+  },
+);
 
 app.use('/api/items', itemsRouter);
 
@@ -73,10 +81,10 @@ app.listen(PORT, () => {
     console.log('k6 exited');
     console.log('RUNNING AS ' + (process.env.__AS_DEV === 'true' ? 'DEV' : 'PROD'));
     console.log('View', `http://localhost:${PORT}/api/__profile`);
-    console.log(
-      'Res is:',
-      await fetch(`http://localhost:${PORT}/api/__profile/api/all`).then((res) => res.json()),
-    );
+    // console.log(
+    //   'Res is:',
+    //   await fetch(`http://localhost:${PORT}/api/__profile/api/all`).then((res) => res.json()),
+    // );
   });
 });
 

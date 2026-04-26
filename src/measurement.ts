@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { getEntries, StorageEntry } from './async-storage';
-import type { HandlerData, ResponseData, Span, SpanCode } from '../shared-types';
+import type { HandlerData, Method, ResponseData, Span, SpanCode } from '../shared-types';
 import os from 'os';
 import { addEntry, runWithStorage } from './async-storage';
 
@@ -65,8 +65,13 @@ function genCodeId(storageEntry: StorageEntry) {
   return `${storageEntry.spanType}-${storageEntry.file?.filePath || '<unk-path>'}-${storageEntry.evalCodeSnippet}`;
 }
 
-function makeSpan(): Span {
-  return { codeId: '', equivCodeSnippet: '', totalMs: 0, count: 0 };
+function makeSpan(entry: StorageEntry): Span {
+  return {
+    codeId: genCodeId(entry),
+    equivCodeSnippet: entry.evalCodeSnippet,
+    totalMs: 0,
+    count: 0,
+  };
 }
 
 function updateSpan(span: Span, entry: StorageEntry) {
@@ -76,7 +81,12 @@ function updateSpan(span: Span, entry: StorageEntry) {
   span.count++;
 }
 
-export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]) {
+export function saveEntries(
+  endpointEntry: StorageEntry,
+  entries: StorageEntry[],
+  method: Method,
+  path: string,
+) {
   if (endpointEntry.spanType !== 'endpoint') {
     return console.error('endpointEntry must be of type endpoint');
   }
@@ -94,12 +104,15 @@ export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]
   }
 
   // upsert & aggregate endpoint span
-  measurements.endpoints[endpointEntry.subPath] ??= {
-    span: makeSpan(),
+  const endPointKey = `${method}-${path}`.toLowerCase();
+  measurements.endpoints[endPointKey] ??= {
+    method,
+    path,
+    span: makeSpan(endpointEntry),
     middleWares: {},
-    routeHandler: { span: makeSpan(), concDbCalls: {} },
+    routeHandler: { span: makeSpan(endpointEntry), concDbCalls: {} },
   };
-  const endpointData = measurements.endpoints[endpointEntry.subPath];
+  const endpointData = measurements.endpoints[endPointKey];
   updateSpan(endpointData.span, endpointEntry);
 
   // merge overlapping concurrent db intervals into groups
@@ -128,6 +141,18 @@ export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]
     merged.push(...starts);
     stackLength += starts.length;
   }
+  
+  //assign span codes for concurrent db calls
+  for (const mergedDb of mergedDbs){
+    const codeId = mergedDb.entries.map((e) => genCodeId(e)).sort().join('_');
+    measurements.spanCodes[codeId] ??= {
+      type: 'concurrent',
+      equivCodeSnippet: codeId,
+      displayName: '',
+      file: null,
+      errors: {},
+    };
+  }
 
   // assign each handler its nested db groups
   let mergedI = 0;
@@ -146,7 +171,10 @@ export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]
     if (entry.spanType === 'route-handler') {
       updateSpan(endpointData.routeHandler.span, entry);
     } else {
-      endpointData.middleWares[entry.evalCodeSnippet] ??= { span: makeSpan(), concDbCalls: {} };
+      endpointData.middleWares[entry.evalCodeSnippet] ??= {
+        span: makeSpan(entry),
+        concDbCalls: {},
+      };
     }
     const handlerData =
       entry.spanType === 'route-handler'
@@ -160,11 +188,39 @@ export function saveEntries(endpointEntry: StorageEntry, entries: StorageEntry[]
         .map((e) => e.evalCodeSnippet)
         .sort()
         .join('_');
-      handlerData.concDbCalls[concDbKey] ??= {};
+      handlerData.concDbCalls[concDbKey] ??= {
+        span: makeSpan({
+          startMs: 0,
+          endMs: 0,
+          evalCodeSnippet: concDbKey,
+          spanType: 'concurrent',
+          errorMessage: '',
+          subPath: '',
+          file: null,
+        }),
+        dbCalls: {},
+      };
+
+      let earliestStart = Infinity;
+      let latestEnd = -Infinity;
+
       for (const dbEntry of nestedDb.entries) {
-        handlerData.concDbCalls[concDbKey][dbEntry.evalCodeSnippet] ??= makeSpan();
-        updateSpan(handlerData.concDbCalls[concDbKey][dbEntry.evalCodeSnippet], dbEntry);
+        earliestStart = Math.min(earliestStart, dbEntry.startMs);
+        latestEnd = Math.max(latestEnd, dbEntry.endMs);
+
+        handlerData.concDbCalls[concDbKey].dbCalls[dbEntry.evalCodeSnippet] ??= makeSpan(dbEntry);
+        updateSpan(handlerData.concDbCalls[concDbKey].dbCalls[dbEntry.evalCodeSnippet], dbEntry);
       }
+
+      updateSpan(handlerData.concDbCalls[concDbKey].span, {
+        startMs: earliestStart,
+        endMs: latestEnd,
+        evalCodeSnippet: concDbKey,
+        spanType: 'concurrent',
+        errorMessage: '',
+        subPath: '',
+        file: null,
+      });
     }
   }
 
@@ -191,7 +247,7 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
         subPath: '',
       };
 
-      saveEntries(endPointEntry, getEntries());
+      saveEntries(endPointEntry, getEntries(), req.method as Method, req.path);
     });
   });
 };

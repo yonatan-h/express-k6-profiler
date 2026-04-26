@@ -2,8 +2,6 @@ import type { NextFunction, Request, Response, RequestHandler, Application, Rout
 import { SpanCode, SpanType } from '../shared-types';
 import { addEntry } from './async-storage';
 
-const Methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
-export type Method = null | (typeof Methods)[number];
 
 type HandlerInfo = {
   spanType: SpanType;
@@ -122,11 +120,7 @@ export function wrapRouter(router: Router, prefixPath: string) {
 
       for (let i = 0; i < layer.route.stack.length; i++) {
         const innerLayer = layer.route.stack[i];
-        const method: string = innerLayer.method.toLocaleLowerCase();
         const handler = innerLayer.handle;
-        if (!Methods.includes(method as any)) {
-          console.error('Unknown method:', method);
-        }
 
         const isLast = i === stack.length - 1;
         const isBeforeLast = i === stack.length - 2;

@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import { SpanCode, SpanType } from '../shared-types';
-import { Method } from './wrap';
 
 export interface StorageEntry {
   startMs: number;

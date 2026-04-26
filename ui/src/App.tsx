@@ -1,78 +1,72 @@
 import { useEffect, useState } from 'react';
-import {
-  Area,
-  AreaChart,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  Legend,
-  type TooltipProps,
-  type TooltipContentProps,
-  BarChart,
-} from 'recharts';
+import { getChartData } from './convert';
+import type { ResponseData } from '../../shared-types';
+import { SystemInfoHeader } from './components/system-info-header/SystemInfoHeader';
+import { getPrevBackendState, storePrevBackendState } from './comparison-storage';
+import type { ChartData, ChartSpanType } from './frontend-data-types';
+import { EndpointsAndContributors } from './components/endpoints-and-contributors/EndpointsAndContributors';
 
 const path = window.location.pathname;
 const BACKEND_PREFIX = `${window.location.origin}${path}${path.endsWith('/') ? '' : '/'}api`;
 
-
-function Step1() {
-  // Area Charts require NUMERICAL values to draw the graph heights!
-  const data = [
-    { name: '0s', latency: 45, errors: 5 },
-    { name: '1s', latency: 120, errors: 7 },
-    { name: '2s', latency: 80, errors: 500 },
-    { name: '3s', latency: 180, errors: 9 },
-    { name: '6s', latency: 50, errors: 450 },
-  ];
-  return (
-    <ResponsiveContainer className={'border'} width={'100%'} height={500}>
-      <BarChart data={data} margin={{ right: 30 }}>
-        <CartesianGrid strokeDasharray="5 5" />
-        <Area type={'monotone'} dataKey="latency" stackId={'1'} />
-        <Area type={'monotone'} dataKey="errors" stackId={'2'} />
-        <XAxis dataKey={'name'} />
-        <YAxis />
-        <Legend />
-        <Tooltip content={MyToolTip} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-function MyToolTip({ active, payload, label }: TooltipContentProps<number, string>) {
-  return (
-    <div>
-      <p>{active && 'active'}</p>
-      <p>{label}</p>
-      {payload.map((p) => (
-        <p>{p.value}</p>
-      ))}
-    </div>
-  );
-}
-
 export default function App() {
-  const [m, sm] = useState<ResponseType | null>(null);
+  const [prevBackends, setPrevBackends] = useState<Record<string, ResponseData>>({});
+  const [currentBackends, setCurrentBackends] = useState<Record<string, ResponseData>>({});
+  const [requestsTimeSeries, setRequestsTimeSeries] = useState<
+    { timestamp: number; requests: number }[]
+  >([]);
+
+  const restorePrevBackends = () => {
+    setPrevBackends(getPrevBackendState());
+  };
+
+  useEffect(() => {
+    restorePrevBackends();
+  }, []);
+
   useEffect(() => {
     const id = setInterval(async () => {
       // Because we injected a <base> tag in development, relative fetches would hit 3011.
       // So we explicitly construct the absolute URL to ensure we hit the 3010 backend securely.
-      const res = await fetch(`${BACKEND_PREFIX}/all`);
-      const data = await res.json();
-      sm(data);
-    }, 500);
+      try {
+        const res = await fetch(`${BACKEND_PREFIX}/all`);
+        const data: ResponseData = await res.json();
+        const newBackend = { ...currentBackends };
+        newBackend[data.backendId] = data;
+        setCurrentBackends(newBackend);
+        setRequestsTimeSeries((prev) => [
+          ...prev,
+          { timestamp: Date.now(), requests: data.currentInfo.liveRequests },
+        ]);
+      } catch (err) {
+        console.error('Failed to fetch stats:', err);
+      }
+    }, 1000);
 
     return () => clearInterval(id);
   }, []);
 
+  const saveState = async () => {
+    try {
+      await fetch(`${BACKEND_PREFIX}/reset`);
+      storePrevBackendState(currentBackends);
+      restorePrevBackends();
+    } catch (e) {
+      alert('could not store');
+    }
+  };
+
+  const chart = getChartData(currentBackends, {});
   return (
-    <div className="">
-      <div className="border">
-        hij
-        <Step1 />
+    <div className="p-4 h-screen max-w-[1200px] px-[100px] m-auto flex flex-col gap-6 border-x-1 border-gray-100">
+      <div>
+        <h1 className="text-4xl font-bold">KRay</h1>
+        <p>Find hidden latency in your Express</p>
       </div>
+      <button onClick={() => saveState()}>Save State</button>
+      <SystemInfoHeader requestsTimeSeries={requestsTimeSeries} chart={chart} />
+      {/* <pre>{JSON.stringify(chart, null, 2)}</pre> */}
+      <EndpointsAndContributors chart={chart} />
     </div>
   );
 }
