@@ -1,54 +1,18 @@
 import type { NextFunction, Request, Response, RequestHandler, Application, Router } from 'express';
-import { SpanCode, SpanType } from '../shared-types';
-import { addEntry } from './async-storage';
-
+import { SpanType } from '../shared/types';
+import { markEnd, markStart } from './async-storage';
 
 type HandlerInfo = {
   spanType: SpanType;
   index: number;
   handler: RequestHandler;
-  file: SpanCode['file'];
   subPath: string;
 };
 
-const isOk = (code: number) => code < 400;
-
-const measureHandler = (
-  begin: number,
-  res: Response,
-  resArgs: unknown[],
-  nextArgs: unknown[],
-  hasEnded: [boolean],
-  { handler, spanType, index, file, subPath }: HandlerInfo,
-) => {
-  if (hasEnded[0]) {
-    return;
-  }
-
-  let errorCode = isOk(res.statusCode) ? undefined : res.statusCode.toString();
-  let errorMessage = '';
-  let evalCodeSnippet = handler.name || `${spanType}-${index + 1}`;
-  let displayName = handler.name || `${spanType}-${index + 1}`;
-
+const onEnd = (markIndex: number, hasEnded: [boolean]) => {
+  if (hasEnded[0]) return;
   hasEnded[0] = true;
-  if (nextArgs.length > 0) {
-    errorMessage = JSON.stringify(nextArgs[0]);
-  } else if (errorCode && resArgs.length) {
-    errorMessage = JSON.stringify(resArgs[0]);
-  }
-
-  // console.log(getSpanCode());
-
-  addEntry({
-    startMs: begin,
-    endMs: Date.now(),
-    evalCodeSnippet: evalCodeSnippet,
-    errorCode,
-    errorMessage,
-    spanType,
-    file,
-    subPath,
-  });
+  markEnd(markIndex, {}, {});
 };
 
 function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandler {
@@ -56,42 +20,43 @@ function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandle
     return handler;
   }
 
-  const wrapper: RequestHandler = (...args: any[]) => {
+  const newHandler: RequestHandler = (...args: any[]) => {
     let err: any, req: Request, res: Response, next: NextFunction, otherArgs: any[];
 
     if (args.length === 4) [err, req, res, next, ...otherArgs] = args;
     else [req, res, next, ...otherArgs] = args;
 
-    const begin = Date.now();
+    let markIndex: number;
     const hasEnded: [boolean] = [false];
-
-    (res as any).__count = 0;
 
     const oldResJson = res.json.bind(res);
     //TODO: results in super nested .json methods
     res.json = (...args: any[]) => {
-      measureHandler(begin, res, args, [], hasEnded, hInfo);
+      onEnd(markIndex, hasEnded);
       return oldResJson(...args);
     };
 
     //TODO: results in super nested .send methods
     const oldResSend = res.send.bind(res);
     res.send = (...args: any[]) => {
-      measureHandler(begin, res, args, [], hasEnded, hInfo);
+      onEnd(markIndex, hasEnded);
       return oldResSend(...args);
     };
 
     const newNext = (...nextArgs: any[]) => {
-      measureHandler(begin, res, [], nextArgs, hasEnded, hInfo);
+      onEnd(markIndex, hasEnded);
       return next(...nextArgs);
     };
+
     if (args.length === 4) args[3] = newNext;
     else args[2] = newNext;
 
+    const snippet = hInfo.handler.name || `${hInfo.spanType}-${hInfo.index + 1}`;
+    markIndex = markStart(hInfo.spanType, {}, { snippet });
     return (handler as any)(...args);
   };
 
-  return wrapper;
+  return newHandler;
 }
 
 /**
@@ -101,11 +66,11 @@ function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandle
   stack: [
     Layer { 
       method: "get", 
-      handle: authMw // The first middleware in your app.get() array
+      handle: authMw // The first middleware in an app.get() array
     },
     Layer { 
       method: "get", 
-      handle: userController // The final handler in your app.get() array
+      handle: userController // The final handler in an app.get() array
     }
   ],
   methods: { get: true }
@@ -129,9 +94,9 @@ export function wrapRouter(router: Router, prefixPath: string) {
         if (handler.length === 4) {
           spanType = 'middleware'; //TODO: may need to be error-middleware
         } else if (isLast) {
-          spanType = 'route-handler';
+          spanType = 'route';
         } else if (isBeforeLast && layer.route.stack[i + 1]?.handle?.length === 4) {
-          spanType = 'route-handler';
+          spanType = 'route';
         } else {
           spanType = 'middleware';
         }
@@ -139,7 +104,6 @@ export function wrapRouter(router: Router, prefixPath: string) {
           spanType,
           index: i,
           handler,
-          file: null,
           subPath: layer.route.path,
         });
       }
@@ -151,7 +115,6 @@ export function wrapRouter(router: Router, prefixPath: string) {
         spanType: 'middleware',
         index: 0,
         handler: layer.handle,
-        file: null,
         subPath: prefixPath,
       });
     }

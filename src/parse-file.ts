@@ -1,10 +1,9 @@
-import { SpanCode } from "../shared-types";
+import { SpanCode } from '../shared/types';
 
-export function getSpanCode():SpanCode['file'] {
-    
-    return {
-        filePath: '',
-        lineNumber: 0,
-        content: '',
-    }
+export function getSpanCode(): SpanCode['file'] {
+  return {
+    filePath: '',
+    lineNumber: 0,
+    content: '',
+  };
 }
