@@ -23,8 +23,10 @@ export function makeSpan(partial: Partial<Span> & { type: SpanType }): Span {
       return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
     case 'root':
       return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
+    case 'console-log':
+      return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
     default:
-      throw new Error('Invalid span type');
+      throw new Error(`Invalid span type ${(partial as any).type}`);
   }
 }
 
@@ -70,7 +72,7 @@ export function makeSpanCode(partial: Partial<SpanCode> & { type: SpanType }): S
     type: partial.type,
     snippet: partial?.snippet || '',
     filePath: partial?.filePath || '',
-    content: partial?.content || '',
+    line: partial?.line || -1,
   };
 }
 
@@ -86,7 +88,7 @@ export function mergeSpanCodes({
   const existing = existingSpanCode || makeSpanCode({ type: type });
   existing.snippet = newSpanCode.snippet ?? existing.snippet;
   existing.filePath = newSpanCode.filePath ?? existing.filePath;
-  existing.content = newSpanCode.content ?? existing.content;
+  existing.line = newSpanCode.line ?? existing.line;
   return existing;
 }
 

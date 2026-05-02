@@ -1,6 +1,13 @@
 const Methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
 export type Method = null | (typeof Methods)[number];
-export type SpanType = 'middleware' | 'db' | 'route' | 'endpoint' | 'promise-all' | 'root';
+export type SpanType =
+  | 'middleware'
+  | 'db'
+  | 'route'
+  | 'endpoint'
+  | 'promise-all'
+  | 'root'
+  | 'console-log';
 interface BaseSpan {
   type: SpanType;
   spanCodeId: string;
@@ -38,13 +45,24 @@ export interface EndpointSpan extends BaseSpan {
   errors: { [code: string]: { count: number; message: string } };
 }
 
-export type Span = MiddlewareSpan | PromiseAllSpan | DbSpan | RouteSpan | EndpointSpan | RootSpan;
+export interface ConsoleLogSpan extends BaseSpan {
+  type: 'console-log';
+}
+
+export type Span =
+  | MiddlewareSpan
+  | PromiseAllSpan
+  | DbSpan
+  | RouteSpan
+  | EndpointSpan
+  | RootSpan
+  | ConsoleLogSpan;
 
 export interface SpanCode {
   type: SpanType;
   snippet: string;
   filePath: string;
-  content: string;
+  line:number;
 }
 
 //span tree roughly expected to have

@@ -15,10 +15,11 @@ export interface SpanStore {
 
 const asyncStorage = new AsyncLocalStorage<SpanStore>();
 
+const NO_SPAN_CONTEXT = 'Storage not found';
 function getStore(): SpanStore {
   const s = asyncStorage.getStore();
   if (!s) {
-    throw new Error('Storage not found');
+    throw new Error(NO_SPAN_CONTEXT);
   }
   return s;
 }
@@ -28,6 +29,7 @@ export function markStart(
   type: SpanType,
   partialSpan: Partial<Span>,
   partialSpanCode: Partial<SpanCode>,
+  { expectSpanContext }: { expectSpanContext?: boolean } = { expectSpanContext: false },
 ): number {
   try {
     const s = getStore();
@@ -36,7 +38,10 @@ export function markStart(
     s.stack.push({ span, spanCode, startMs: Date.now() });
     return s.stack.length - 1;
   } catch (e) {
-    addError(e as Error);
+    const skip = (e as Error)?.message === NO_SPAN_CONTEXT && !expectSpanContext;
+    if (!skip) {
+      addError(e as Error);
+    }
     return -1;
   }
 }
@@ -45,10 +50,13 @@ export function markEnd(
   index: number,
   partialSpan: Partial<Span>,
   partialSpanCode: Partial<SpanCode>,
-  forceCollapse = false,
+  { expectSpanContext, forceCollapse }: { expectSpanContext?: boolean; forceCollapse?: boolean } = {
+    expectSpanContext: false,
+    forceCollapse: false,
+  },
 ) {
   if (index === -1) {
-    return addError(new Error(`'${partialSpanCode?.snippet || '<unknown-span>'}' has index = -1`));
+    return;
   }
   try {
     const s = getStore();
@@ -103,7 +111,11 @@ export function markEnd(
       }
     }
   } catch (e) {
-    return addError(e as Error);
+    const skip = (e as Error)?.message === NO_SPAN_CONTEXT && !expectSpanContext;
+    if (!skip) {
+      addError(e as Error);
+    }
+    return;
   }
 }
 

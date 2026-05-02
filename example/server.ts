@@ -17,12 +17,15 @@ itemsRouter.get('/deep', (req, res) => {
 const app = express();
 profile(app, { prefix: '/api' });
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 app.use(async function authUsers(req, res, next) {
-  await new Promise((resolve) => setTimeout(resolve, 5));
+  await Promise.all([sleep(15), sleep(5)]);
   next();
 });
 
 app.get('/api/users/:id', async (req, res) => {
+  console.log('bob is a user');
   await new Promise((resolve) => setTimeout(resolve, 100)); //db query
   res.json({ user: 'Bob' });
 });

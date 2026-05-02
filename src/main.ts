@@ -1,8 +1,10 @@
-import { Application} from 'express';
+import { Application } from 'express';
 import { getMeasurements, measuringMiddleware, resetMeasurements } from './measurement';
 import path from 'path';
 import fs from 'fs/promises';
-import { wrapRouter } from './wrap';
+import { wrapMongoose, wrapRouter } from './wrap/wrap';
+import { log } from './utils';
+import { wrapGlobals } from './wrap/wrap-globals';
 
 export interface KRayOptions {
   prefix: string;
@@ -50,12 +52,15 @@ export function profile(app: Application, options: KRayOptions = { prefix: '' })
 
   app.listen = (...args: any[]) => {
     addProfilerEndponts(app, options);
+
     wrapRouter(app.router, '');
+    wrapGlobals();
+    wrapMongoose();
 
     //registered after wrapRouter so it's excluded from wrapping (no storage context needed)
     return oldListen(...args);
   };
-  console.log(
+  log(
     `Express-k6-profiler setup complete. Please open yourbackend:port${options.prefix}/__profile`,
   );
 }

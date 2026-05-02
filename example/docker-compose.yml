@@ -1,0 +1,9 @@
+services:
+  mongo:
+    image: mongo
+    restart: always
+    ports:
+     - "3012:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example

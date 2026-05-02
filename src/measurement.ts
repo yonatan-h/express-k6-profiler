@@ -101,9 +101,10 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
     res.on('finish', () => {
       measurements.currentInfo.liveRequests--;
 
-      markEnd(endpointIndex, {}, {}, true);
-      markEnd(rootIndex, {}, {});
+      markEnd(endpointIndex, {}, {}, { forceCollapse: true, expectSpanContext: true });
+      markEnd(rootIndex, {}, {}, { expectSpanContext: true });
       const store = getStoredData();
+
       if (store) {
         saveEntries({ spans: store.spans, spanCodes: store.spanCodes });
       }

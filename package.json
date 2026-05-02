@@ -43,6 +43,7 @@
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "express": "^5.2.1",
+    "mongoose": "^9.6.1",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2"
   }
