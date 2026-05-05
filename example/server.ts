@@ -1,3 +1,4 @@
+import { ResponseData } from '../shared/types';
 import app from './src/app';
 import { spawn } from 'child_process';
 
@@ -14,10 +15,11 @@ app.listen(PORT, () => {
   child.on('exit', async () => {
     console.log('k6 exited');
     console.log('RUNNING AS ' + (process.env.__AS_DEV === 'true' ? 'DEV' : 'PROD'));
-    console.log(
-      'Res is:',
-      // await fetch(`http://localhost:${PORT}/api/__profile/api/all`).then((res) => res.json()),
+    const res: ResponseData = await fetch(`http://localhost:${PORT}/api/__profile/api/all`).then(
+      (res) => res.json(),
     );
+
+    console.log('Res is:', res.spans);
     console.log('View', `http://localhost:${PORT}/api/__profile`);
   });
 });

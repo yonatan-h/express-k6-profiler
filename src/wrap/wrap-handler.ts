@@ -22,7 +22,6 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
   }
   stampAsWrapped(handler);
 
-  const error = new Error();
   const newHandler: RequestHandler = (...args: any[]) => {
     let err: any, req: Request, res: Response, next: NextFunction, otherArgs: any[];
 
@@ -54,13 +53,13 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     if (args.length === 4) args[3] = newNext;
     else args[2] = newNext;
 
-    const methodName = hInfo.handler.name || `${hInfo.spanType}-${hInfo.index + 1}`;
-    const { line, filePath, snippet, isUserLevel } = getCodeInfo(error, {
-      methodName,
-      args,
-      showLogs: hInfo.spanType === 'route',
-    });
-    markIndex = markStart(hInfo.spanType, {}, { line, filePath, snippet }, { isUserLevel });
+    let snippet = hInfo.handler.name;
+    if (hInfo.spanType === 'route') {
+      snippet = `${req.method}:${hInfo.subPath}`;
+    } else {
+      snippet = `${hInfo.spanType}-${hInfo.index + 1}`;
+    }
+    markIndex = markStart(hInfo.spanType, {}, { snippet });
     return (handler as any)(...args);
   };
 

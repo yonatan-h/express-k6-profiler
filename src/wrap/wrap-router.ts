@@ -49,11 +49,12 @@ export function wrapRouter(router: Router, prefixPath: string) {
           spanType,
           index: i,
           handler,
-          subPath: layer.route.path,
+          subPath: prefixPath + (layer.route.path || ''),
         });
       }
     } else if (Array.isArray((layer.handle as Router).stack)) {
-      wrapRouter(layer.handle as Router, prefixPath + layer.path||'-');
+      wrapRouter(layer.handle as Router, prefixPath + (layer.path || '-'));
+      log("🚀 ~ wrapRouter ~ layer:", prefixPath, layer)
     } else if (typeof layer.handle === 'function') {
       //is a middleware, put as app.use probably
       const error = new Error();

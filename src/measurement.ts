@@ -95,7 +95,7 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
     const rootIndex = markStart('root', {}, { snippet: '<root>' });
     const endpointIndex = markStart(
       'endpoint',
-      { method: req.method as Method, path: req.path },
+      { method: req.method as Method, path: req.route?.path ? (req.baseUrl + req.route?.path) : '<no match>' },
       { snippet: `${req.method}:${req.path}()` },
     );
     next();

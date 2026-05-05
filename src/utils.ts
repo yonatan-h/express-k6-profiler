@@ -51,12 +51,18 @@ export function getCodeInfo(
       x = frame.methodName;
 
       if (showLogs) {
-        log(`isUserLevel${isUserLevel} \t frame: ${frame.methodName}\t file: ${frame.file}:${frame.lineNumber}`);
+        log(
+          `isUserLevel${isUserLevel} \t frame: ${frame.methodName}\t file: ${frame.file}:${frame.lineNumber}`,
+        );
       }
       continue;
     }
 
-    log(`isUserLevel${isUserLevel} \t frame: ${frame.methodName}\t file: ${frame.file}:${frame.lineNumber}`);
+    if (showLogs) {
+      log(
+        `isUserLevel${isUserLevel} \t frame: ${frame.methodName}\t file: ${frame.file}:${frame.lineNumber}`,
+      );
+    }
     const callerName = frame.methodName === '<unknown>' ? '' : frame.methodName;
     const snippet = `${callerName}${callerName ? ' → ' : ''}${methodName}(${args.length > 0 ? `${args.length} args` : ''})`;
     return {
