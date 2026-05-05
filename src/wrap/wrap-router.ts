@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response, RequestHandler, Application, Rout
 import { SpanType } from '../../shared/types';
 import { markEnd, markStart } from '../async-storage';
 import { wrapHandler } from './wrap-handler';
+import { log } from '../utils';
 
 /**
  * Reference data structure of 'router'
@@ -52,9 +53,10 @@ export function wrapRouter(router: Router, prefixPath: string) {
         });
       }
     } else if (Array.isArray((layer.handle as Router).stack)) {
-      wrapRouter(layer.handle as Router, prefixPath + layer.path);
+      wrapRouter(layer.handle as Router, prefixPath + layer.path||'-');
     } else if (typeof layer.handle === 'function') {
       //is a middleware, put as app.use probably
+      const error = new Error();
       layer.handle = wrapHandler(layer.handle, {
         spanType: 'middleware',
         index: 0,

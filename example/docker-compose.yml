@@ -1,7 +1,7 @@
 services:
   mongo:
-    image: mongo
-    restart: always
+    image: mongo:latest
+    restart: unless-stopped
     ports:
      - "3012:27017"
     environment:

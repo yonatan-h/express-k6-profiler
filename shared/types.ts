@@ -63,6 +63,7 @@ export interface SpanCode {
   snippet: string;
   filePath: string;
   line:number;
+  col:number;
 }
 
 //span tree roughly expected to have

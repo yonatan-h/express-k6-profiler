@@ -73,6 +73,7 @@ export function makeSpanCode(partial: Partial<SpanCode> & { type: SpanType }): S
     snippet: partial?.snippet || '',
     filePath: partial?.filePath || '',
     line: partial?.line || -1,
+    col: partial?.col || -1,
   };
 }
 

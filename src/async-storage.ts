@@ -29,8 +29,12 @@ export function markStart(
   type: SpanType,
   partialSpan: Partial<Span>,
   partialSpanCode: Partial<SpanCode>,
-  { expectSpanContext }: { expectSpanContext?: boolean } = { expectSpanContext: false },
+  { expectSpanContext, isUserLevel }: { expectSpanContext?: boolean; isUserLevel?: boolean } = {
+    expectSpanContext: false,
+    isUserLevel: true,
+  },
 ): number {
+  if (!isUserLevel) return -1;
   try {
     const s = getStore();
     const span = makeSpan({ ...partialSpan, type });

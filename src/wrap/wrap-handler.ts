@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response, RequestHandler, Application, Router } from 'express';
 import { SpanType } from '../../shared/types';
 import { markEnd, markStart } from '../async-storage';
+import { getCodeInfo, isWrapped, log, skipWrapping, stampAsWrapped } from '../utils';
 
 type HandlerInfo = {
   spanType: SpanType;
@@ -16,10 +17,12 @@ const onEnd = (markIndex: number, hasEnded: [boolean]) => {
 };
 
 export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandler {
-  if ((handler as unknown as { __kraySkipWrap?: boolean }).__kraySkipWrap) {
+  if (skipWrapping(handler) || isWrapped(handler)) {
     return handler;
   }
+  stampAsWrapped(handler);
 
+  const error = new Error();
   const newHandler: RequestHandler = (...args: any[]) => {
     let err: any, req: Request, res: Response, next: NextFunction, otherArgs: any[];
 
@@ -51,8 +54,13 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     if (args.length === 4) args[3] = newNext;
     else args[2] = newNext;
 
-    const snippet = hInfo.handler.name || `${hInfo.spanType}-${hInfo.index + 1}`;
-    markIndex = markStart(hInfo.spanType, {}, { snippet });
+    const methodName = hInfo.handler.name || `${hInfo.spanType}-${hInfo.index + 1}`;
+    const { line, filePath, snippet, isUserLevel } = getCodeInfo(error, {
+      methodName,
+      args,
+      showLogs: hInfo.spanType === 'route',
+    });
+    markIndex = markStart(hInfo.spanType, {}, { line, filePath, snippet }, { isUserLevel });
     return (handler as any)(...args);
   };
 

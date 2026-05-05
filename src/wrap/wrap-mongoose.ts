@@ -1,47 +1,96 @@
-import { log, safeImport } from '../utils';
-import type mongoose from  'mongoose'
+import { getCodeInfo, isWrapped, log, safeImport } from '../utils';
+import { markEnd, markStart } from '../async-storage';
+import { type Query, type Model } from 'mongoose';
+
+const MODEL_METHODS = [
+  'create',
+  'find',
+  'findOne',
+  'findById',
+  'findByIdAndUpdate',
+  'findByIdAndDelete',
+  'updateOne',
+  'updateMany',
+  'deleteOne',
+  'deleteMany',
+  'countDocuments',
+] as const;
 
 export function wrapMongoose() {
-  const mongoose = safeImport('mongoose');
+  const mongoose = safeImport('mongoose') as typeof import('mongoose') | null;
   if (!mongoose) {
     log('mongoose not detected, skipping wrapping');
+    return;
   }
 
+  const modelNames = mongoose.modelNames();
+  if (modelNames.length === 0) {
+    log('wrapMongoose: no models registered yet, nothing to wrap');
+    return;
+  }
+
+  for (const name of modelNames) {
+    const MyModel = mongoose.model(name);
+    for (const methodName of MODEL_METHODS) {
+      const wrapped = wrapMethod(MyModel, MyModel[methodName].bind(MyModel), methodName);
+      MyModel[methodName] = wrapped as any; //TODO: try not using any
+    }
+  }
 }
 
-// function wrapMethod(Model: any, method: string) {
-//   const original = Model[method];
+function wrapMethod(
+  MyModel: Model<any, unknown, unknown, unknown, any, any, unknown>,
+  method: Function,
+  methodName: string,
+): Function {
+  if (isWrapped(method)) return method;
 
-//   Model[method] = function (...args: any[]) {
-//     // 1. start tracking
-//     const span = markStart('mongoose', {}, {
-//       snippet: `${this.modelName}.${method}()`
-//     });
+  const newMethod = (...args: any[]) => {
+    const error = new Error();
+    const { line, filePath, snippet, isUserLevel } = getCodeInfo(error, {
+      methodName: `${MyModel.modelName}.${methodName}`,
+      args,
+    });
+    const startIndex = markStart('db', {}, { line, filePath, snippet }, { isUserLevel });
 
-//     const error = new Error();
+    const result: Promise<unknown> | Query<unknown, unknown> = method(...args);
+    if ('exec' in result) {
+      wrapQuery(result, startIndex);
+    } else {
+      wrapPromise(result, startIndex);
+    }
 
-//     // 2. call original method
-//     const query = original.apply(this, args);
+    return result;
+  };
+  return newMethod;
+}
 
-//     // 3. hook when it actually executes
-//     const oldThen = query.then;
+function wrapQuery(query: Query<unknown, unknown>, startIndex: number) {
+  const oldThen = query.then.bind(query);
 
-//     query.then = function (onSuccess: any, onError: any) {
-//       return oldThen.call(
-//         this,
-//         (res: any) => {
-//           const meta = getCodeInfo(error);
-//           markEnd(span, {}, meta);
-//           return onSuccess?.(res);
-//         },
-//         (err: any) => {
-//           const meta = getCodeInfo(error);
-//           markEnd(span, { error: err }, meta);
-//           return onError?.(err);
-//         }
-//       );
-//     };
+  const measure = () => {
+    markEnd(startIndex, {}, {});
+  };
 
-//     return query;
-//   };
-// }
+  const newThen: typeof query.then = (onRes?: any, onRej?: any) => {
+    const newRes = (val: any) => {
+      measure();
+      if (onRes && typeof onRes === 'function') return onRes(val);
+    };
+
+    const newRej = (val: any) => {
+      measure();
+      if (onRej && typeof onRej === 'function') return onRej(val);
+    };
+
+    return oldThen(newRes, newRej);
+  };
+
+  query.then = newThen;
+}
+
+function wrapPromise(promise: Promise<unknown>, startIndex: number) {
+  promise.finally(() => {
+    markEnd(startIndex, {}, {});
+  });
+}

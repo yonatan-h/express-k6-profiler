@@ -4,6 +4,7 @@ import type { EndpointSpan, Method, ResponseData, Span, SpanCode } from '../shar
 import os from 'os';
 import { runWithStorageContext } from './async-storage';
 import { makeSpan, makeSpanCode, mergeTrees } from '../shared/utils';
+import { stampSkipWrapping } from './utils';
 
 let measurements: ResponseData = createMeasurements();
 
@@ -91,11 +92,11 @@ export function addError(error: Error) {
 export const measuringMiddleware = (req: Request, res: Response, next: NextFunction) => {
   measurements.currentInfo.liveRequests++;
   runWithStorageContext(() => {
-    const rootIndex = markStart('root', {}, { snippet: 'express.js' });
+    const rootIndex = markStart('root', {}, { snippet: '<root>' });
     const endpointIndex = markStart(
       'endpoint',
       { method: req.method as Method, path: req.path },
-      { snippet: `${req.path}()` },
+      { snippet: `${req.method}:${req.path}()` },
     );
     next();
     res.on('finish', () => {
@@ -111,4 +112,5 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
     });
   });
 };
-measuringMiddleware.__kraySkipWrap = true;
+
+stampSkipWrapping(measuringMiddleware)
