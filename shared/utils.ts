@@ -129,3 +129,22 @@ export function mergeTrees(trees: {
     });
   }
 }
+
+export function safeDivide(
+  a: number | undefined | null,
+  b: number,
+  { toPercent = false, abs = false }: { toPercent?: boolean; abs?: boolean } = {},
+) {
+  let ans = 0;
+  a = a ?? 0;
+  b = b ?? 1;
+
+  ans = a / b;
+  if (toPercent) {
+    ans = Math.round(ans * 100);
+  }
+  if (abs) {
+    ans = Math.abs(ans);
+  }
+  return ans;
+}
