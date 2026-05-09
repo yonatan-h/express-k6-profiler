@@ -13,7 +13,7 @@ export default function App() {
           <Suggestions />
         </div>
         <div className="flex-1 flex flex-col gap-3">
-      <TopSummary />
+          <TopSummary />
           <RawInfo />
         </div>
       </div>
@@ -23,26 +23,26 @@ export default function App() {
 
 function TopSummary() {
   return (
-    <div className="bg-white rounded p-3 flex gap-3 justify-between">
+    <div className="bg-white rounded p-3 flex gap-3 justify-between border border-gray-200">
       <div className="flex gap-3">
-        <p>
-          <p className="text-xs">Avg latency</p>
-          <p className="pr-2 font-bold">240 ms</p>
-          <p className="text-xs text-green-700 font-bold">▼ 25%</p>
+        <p className="flex flex-col">
+          <span className="text-xs">Avg latency</span>
+          <span className="pr-2 font-bold">240 ms</span>
+          <span className="text-xs text-green-700 font-bold">▼ 25%</span>
         </p>
 
         <div className="w-0.5 border border-gray-200" />
         <p>
-          <p className="text-xs">Requests</p>
-          <p className="pr-2 ">240</p>
-          <p className="text-xs text-green-700 font-bold">▼ 25%</p>
+          <span className="text-xs">Requests</span>
+          <span className="pr-2 ">240</span>
+          <span className="text-xs text-green-700 font-bold">▼ 25%</span>
         </p>
 
         <div className="w-0.5 border border-gray-200" />
         <p>
-          <p className="text-xs">Error rate</p>
-          <p className="pr-2 ">2.1%</p>
-          <p className="text-xs text-green-700 font-bold">▼ 25%</p>
+          <span className="text-xs">Error rate</span>
+          <span className="pr-2 ">2.1%</span>
+          <span className="text-xs text-green-700 font-bold">▼ 25%</span>
         </p>
 
         <div className="w-0.5 border border-gray-200" />
@@ -71,7 +71,7 @@ function BaseLine() {
 function Suggestions() {
   const [isOpen, setIsOpen] = useState(true);
   return (
-    <div className={`bg-white rounded p-3 ${isOpen ? `w-[300px]` : ``}`}>
+    <div className={`bg-white rounded p-3 ${isOpen ? `w-[300px]` : ``} border border-gray-200`}>
       <div className={`flex items-center pb-3 ${isOpen ? `justify-between` : 'justify-center'}`}>
         {isOpen && (
           <h2 className={`flex justify-center items-center `}>
@@ -172,14 +172,86 @@ interface SpanFolder {
   subFolders: SpanFolder[];
 }
 
+function Ruler({
+  every: markEvery,
+  max,
+  maxWidthPx,
+  labelWhen,
+}: {
+  every: number;
+  max: number;
+  maxWidthPx: number;
+  labelWhen: (num: number) => boolean;
+}) {
+  const labels: number[] = [];
+  for (let i = 0; i <= max; i += markEvery) {
+    labels.push(i);
+  }
+
+  //TODO: make not selectable
+  return (
+    <div className="relative h-5 " style={{ width: maxWidthPx + 'px' }}>
+      {labels.reverse().map((label) => (
+        <div
+          key={label}
+          className={`
+            absolute  transform translate-x-1/2  bottom-0 pr-px
+            flex flex-col items-center  text-[0.55rem] 
+          `}
+          style={{ right: (label / max) * maxWidthPx }}
+        >
+          {labelWhen(label) && <span>{label}</span>}
+          <span className="text-[0.3rem]">|</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function FolderBar({
+  cur,
+  prev,
+  maxMs,
+  maxWidthPx,
+}: {
+  cur: FolderProps;
+  prev: FolderProps | null;
+  maxMs: number;
+  maxWidthPx: number;
+}) {
+  const curWidthPx = safeDivide(cur.totalMs, maxMs) * maxWidthPx;
+  const prevWidthPx = safeDivide(prev.totalMs, maxMs) * maxWidthPx;
+  const better = cur.totalMs < prev.totalMs;
+  return (
+    <div className="flex justify-end items-center w-full h-4 relative">
+      <div
+        className={`border border-gray-400 absolute h-full rounded-l bg-gray-100 ${
+          better ? 'z-20' : ''
+        }`}
+        style={{ width: curWidthPx }}
+      ></div>
+
+      {prev && (
+        <div
+          className={`border border-dashed border-gray-400 rounded-l absolute h-full
+
+          ${better ? '' : 'z-20'}`}
+          style={{ width: prevWidthPx }}
+        ></div>
+      )}
+    </div>
+  );
+}
+
 function Folder({
   data: { cur, prev, subFolders },
   depth,
   maxMs,
+  maxWidthPx,
 }: {
   data: SpanFolder;
   depth: number;
   maxMs: number;
+  maxWidthPx: number;
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -187,9 +259,6 @@ function Folder({
   const errorCount = Object.values(cur.errors).reduce((acc, curr) => acc + curr.count, 0);
 
   // Scale accurately relative to the root total time.
-  const maxWidth = 100;
-  const curWidth = safeDivide(cur.totalMs, maxMs) * maxWidth;
-  const prevWidth = safeDivide(prev.totalMs, maxMs) * maxWidth;
 
   // <th className="pb-2 font-normal pr-4">Latency Share</th>
   // <th className="pb-2 font-normal pr-4">Code</th>
@@ -198,30 +267,27 @@ function Folder({
   return (
     <>
       <tr className="text-xs">
-        <td className="py-1 pl-4 border border-gray-200">
-          {prev && (
-            <div className="flex justify-end w-full">
-              <span className='pr-1 text-gray-500'>{prev.totalMs}ms</span>
-              <div
-                className="h-[1rem] w-full bg-gray-100 rounded-l border-l border-y  border-gray-300"
-                style={{ width: prevWidth + 'px' }}
-              ></div>
-            </div>
-          )}
-          <div className="flex justify-end w-full">
-              <span className='pr-1'>{cur.totalMs}ms</span>
-            <div
-              className="h-[1rem] w-full bg-gray-200 rounded-l border-l border-y border-gray-300"
-              style={{ width: curWidth + 'px' }}
-            ></div>
-          </div>
+        <td className="py-1 px-4 border border-gray-200">
+          {cur.totalMs}ms
+          {<span></span>}
         </td>
+        <td className="py-1 border border-gray-200">
+          <FolderBar cur={cur} prev={prev} maxMs={maxMs} maxWidthPx={maxWidthPx} />
+        </td>
+
+        {/*  */}
         <td className="py-1 px-4 border border-gray-200">{cur.snippet}</td>
         <td className="py-1 px-4 border border-gray-200">{cur.count}</td>
         <td className="py-1 px-4 border border-gray-200">{Object.values(cur.errors).length}</td>
       </tr>
       {subFolders.map((folder, i) => (
-        <Folder key={`${cur.snippet}-${i}`} data={folder} depth={depth + 1} maxMs={maxMs} />
+        <Folder
+          key={`${cur.snippet}-${i}`}
+          data={folder}
+          depth={depth + 1}
+          maxMs={maxMs}
+          maxWidthPx={maxWidthPx}
+        />
       ))}
     </>
   );
@@ -244,7 +310,7 @@ function RawInfo() {
     subFolders: [
       {
         cur: {
-          totalMs: 40,
+          totalMs: 60,
           count: 10,
           snippet: 'auth',
           errors: { '401': { count: 3, message: 'Unauthorized' } },
@@ -288,7 +354,7 @@ function RawInfo() {
           },
           {
             cur: {
-              totalMs: 30,
+              totalMs: 50,
               count: 6,
               snippet: 'Promise.all',
               errors: {},
@@ -352,18 +418,31 @@ function RawInfo() {
     ],
   };
 
-  let maxMs = 50;
+  let maxMs = 0;
   for (const folder of data.subFolders) {
     maxMs = Math.max(maxMs, folder.cur.totalMs, folder.prev?.totalMs ?? 0);
   }
+  maxMs += 10;
+
+  const maxWidthPx = 200;
 
   return (
-    <div className="p-3 bg-white rounded flex-1 overflow-auto">
+    <div className="p-3 bg-white rounded flex-1 overflow-auto border border-gray-200">
       <h2 className="pb-6">Where does the time go?</h2>
       <table className="border-collapse">
         <thead>
           <tr className="text-xs text-left ">
-            <th className="py-2 font-normal px-4 border border-gray-200 text-right">Latency</th>
+            <th className="py-2 font-normal px-4 border border-gray-200 ">Latency</th>
+            <th className="pt-2 font-normal border border-gray-200 ">
+              <Ruler
+                every={5}
+                max={maxMs}
+                maxWidthPx={maxWidthPx}
+                labelWhen={(num) => {
+                  return num > 0 && num % 10 === 0 && num < maxMs - 5;
+                }}
+              />
+            </th>
             <th className="py-2 font-normal px-4 border border-gray-200 ">Code</th>
             <th className="py-2 font-normal px-4 border border-gray-200 ">Count</th>
             <th className="py-2 font-normal px-4 border border-gray-200 ">Errors</th>
@@ -372,7 +451,13 @@ function RawInfo() {
         <tbody>
           {data.subFolders.map((folder, i) => {
             return (
-              <Folder key={`${folder.cur.snippet}-${i}`} data={folder} maxMs={maxMs} depth={0} />
+              <Folder
+                key={`${folder.cur.snippet}-${i}`}
+                data={folder}
+                maxMs={maxMs}
+                depth={0}
+                maxWidthPx={maxWidthPx}
+              />
             );
           })}
         </tbody>
@@ -383,7 +468,7 @@ function RawInfo() {
 
 function Nav() {
   return (
-    <div className="p-2 w-full bg-white flex justify-between rounded  items-center">
+    <div className="p-2 w-full bg-white flex justify-between rounded  items-center border border-gray-200">
       <h1 className="font-bold">KRay</h1>
       <div></div>
     </div>
