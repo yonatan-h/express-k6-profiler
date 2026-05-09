@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 import { safeDivide } from '../../shared/utils';
+import { IoChevronDown, IoChevronForward } from 'react-icons/io5';
+import type { FolderProps, SpanFolder } from './front-types';
+import { data } from './samples';
+import { TbBrackets, TbDatabase, TbLogs, TbRouteAltRight } from 'react-icons/tb';
+import type { SpanType } from '../../shared/types';
+import { AiOutlineBranches, AiOutlineVerticalAlignMiddle } from 'react-icons/ai';
 
 const path = window.location.pathname;
 const BACKEND_PREFIX = `${window.location.origin}${path}${path.endsWith('/') ? '' : '/'}api`;
@@ -160,18 +166,6 @@ function BDTable() {
   );
 }
 
-interface FolderProps {
-  totalMs: number;
-  count: number;
-  snippet: string;
-  errors: Record<string, { count: number; message: string }>;
-}
-interface SpanFolder {
-  cur: FolderProps;
-  prev: FolderProps | null;
-  subFolders: SpanFolder[];
-}
-
 function Ruler({
   every: markEvery,
   max,
@@ -191,14 +185,14 @@ function Ruler({
   //TODO: make not selectable
   return (
     <div className="relative h-5 " style={{ width: maxWidthPx + 'px' }}>
-      {labels.reverse().map((label) => (
+      {labels.map((label) => (
         <div
           key={label}
           className={`
-            absolute  transform translate-x-1/2  bottom-0 pr-px
-            flex flex-col items-center  text-[0.55rem] 
+            absolute  transform -translate-x-1/2  bottom-0
+            flex flex-col items-center  text-[0.55rem]
           `}
-          style={{ right: (label / max) * maxWidthPx }}
+          style={{ left: (label / max) * 100 + '%' }}
         >
           {labelWhen(label) && <span>{label}</span>}
           <span className="text-[0.3rem]">|</span>
@@ -222,9 +216,9 @@ function FolderBar({
   const prevWidthPx = safeDivide(prev.totalMs, maxMs) * maxWidthPx;
   const better = cur.totalMs < prev.totalMs;
   return (
-    <div className="flex justify-end items-center w-full h-4 relative">
+    <div className="flex items-center w-full h-4 relative">
       <div
-        className={`border border-gray-400 absolute h-full rounded-l bg-gray-100 ${
+        className={`border border-gray-400 absolute h-full rounded-r bg-gray-100 ${
           better ? 'z-20' : ''
         }`}
         style={{ width: curWidthPx }}
@@ -232,7 +226,7 @@ function FolderBar({
 
       {prev && (
         <div
-          className={`border border-dashed border-gray-400 rounded-l absolute h-full
+          className={`border border-dashed border-gray-400 rounded-r absolute h-full
 
           ${better ? '' : 'z-20'}`}
           style={{ width: prevWidthPx }}
@@ -242,8 +236,54 @@ function FolderBar({
   );
 }
 
+function FolderPad({ dir }: { dir: 'right' | 'down' | 'line' | 'none' }) {
+  return (
+    <div className="flex justify-center items-center w-5">
+      {dir === 'right' && <IoChevronForward />}
+      {dir === 'down' && <IoChevronDown />}
+      {dir === 'line' && <div className="w-px h-full group-hover:border-l border-gray-200"></div>}
+      {dir === 'none' && null}
+    </div>
+  );
+}
+
+const ICONS: Record<SpanType, React.ReactNode> = {
+  route: <TbRouteAltRight />,
+  middleware: <AiOutlineBranches />,
+  db: <TbDatabase />,
+  'promise-all': <TbBrackets />,
+  'console-log': <TbLogs />,
+  endpoint: <span>E</span>,
+  root: <span>R</span>,
+};
+
+function FolderIcon({ type }: { type: SpanType }) {
+  const accent: Record<SpanType, string> = {
+    route: 'text-blue-600',
+    middleware: 'text-purple-600',
+    db: 'text-emerald-700',
+    'promise-all': 'text-amber-600',
+    'console-log': 'text-gray-600',
+    endpoint: '',
+    root: '',
+  };
+
+  return (
+    <div
+      className="
+        h-4 w-4
+        flex items-center justify-center
+        text-[12px]
+        text-gray-600
+      "
+      title={type}
+    >
+      <span className={accent[type]}>{ICONS[type]}</span>
+    </div>
+  );
+}
 function Folder({
-  data: { cur, prev, subFolders },
+  data: { cur, prev, subFolders, type },
   depth,
   maxMs,
   maxWidthPx,
@@ -258,27 +298,37 @@ function Folder({
   const hasChildren = subFolders && subFolders.length > 0;
   const errorCount = Object.values(cur.errors).reduce((acc, curr) => acc + curr.count, 0);
 
-  // Scale accurately relative to the root total time.
-
-  // <th className="pb-2 font-normal pr-4">Latency Share</th>
-  // <th className="pb-2 font-normal pr-4">Code</th>
-  // <th className="pb-2 font-normal pr-4">Count</th>
-  // <th className="pb-2 font-normal">Errors</th>
   return (
     <>
       <tr className="text-xs">
+        <td className="  border border-gray-200">
+          <button
+            className=" hover:bg-gray-100  w-full text-left flex"
+            onClick={() => setIsOpen(!isOpen)}
+          >
+            {Array.from({ length: depth + 1 }).map((_, i) => {
+              if (!hasChildren || i !== depth) return <FolderPad dir="line" />;
+              return <FolderPad dir={isOpen ? 'down' : 'right'} />;
+            })}
+
+            <span className="py-1 flex gap-1">
+              <FolderIcon type={type} /> {cur.snippet}
+            </span>
+            <FolderPad dir="none" />
+          </button>
+        </td>
+
         <td className="py-1 px-4 border border-gray-200">
           {cur.totalMs}ms
           {<span></span>}
         </td>
+
         <td className="py-1 border border-gray-200">
           <FolderBar cur={cur} prev={prev} maxMs={maxMs} maxWidthPx={maxWidthPx} />
         </td>
 
-        {/*  */}
-        <td className="py-1 px-4 border border-gray-200">{cur.snippet}</td>
         <td className="py-1 px-4 border border-gray-200">{cur.count}</td>
-        <td className="py-1 px-4 border border-gray-200">{Object.values(cur.errors).length}</td>
+        <td className="py-1 px-4 border border-gray-200">{errorCount}</td>
       </tr>
       {subFolders.map((folder, i) => (
         <Folder
@@ -294,130 +344,6 @@ function Folder({
 }
 
 function RawInfo() {
-  const data: SpanFolder = {
-    cur: {
-      totalMs: 120,
-      count: 30,
-      snippet: '<root>',
-      errors: {},
-    },
-    prev: {
-      totalMs: 140,
-      count: 30,
-      snippet: '<root>',
-      errors: {},
-    },
-    subFolders: [
-      {
-        cur: {
-          totalMs: 60,
-          count: 10,
-          snippet: 'auth',
-          errors: { '401': { count: 3, message: 'Unauthorized' } },
-        },
-        prev: {
-          totalMs: 50,
-          count: 10,
-          snippet: 'auth',
-          errors: { '401': { count: 5, message: 'Unauthorized' } },
-        },
-        subFolders: [],
-      },
-      {
-        cur: {
-          totalMs: 60,
-          count: 12,
-          snippet: 'GET /api/users',
-          errors: { '500': { count: 2, message: 'did not work' } },
-        },
-        prev: {
-          totalMs: 70,
-          count: 12,
-          snippet: 'GET /api/users',
-          errors: { '500': { count: 4, message: 'did not work' } },
-        },
-        subFolders: [
-          {
-            cur: {
-              totalMs: 25,
-              count: 6,
-              snippet: 'User.find',
-              errors: {},
-            },
-            prev: {
-              totalMs: 30,
-              count: 6,
-              snippet: 'User.find',
-              errors: {},
-            },
-            subFolders: [],
-          },
-          {
-            cur: {
-              totalMs: 50,
-              count: 6,
-              snippet: 'Promise.all',
-              errors: {},
-            },
-            prev: {
-              totalMs: 35,
-              count: 6,
-              snippet: 'Promise.all',
-              errors: {},
-            },
-            subFolders: [
-              {
-                cur: {
-                  totalMs: 20,
-                  count: 3,
-                  snippet: '|-> Order.find()',
-                  errors: {},
-                },
-                prev: {
-                  totalMs: 22,
-                  count: 3,
-                  snippet: '|-> Order.find()',
-                  errors: {},
-                },
-                subFolders: [],
-              },
-              {
-                cur: {
-                  totalMs: 18,
-                  count: 3,
-                  snippet: '|-> query.exec()',
-                  errors: {},
-                },
-                prev: {
-                  totalMs: 20,
-                  count: 3,
-                  snippet: '|-> query.exec()',
-                  errors: {},
-                },
-                subFolders: [],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        cur: {
-          totalMs: 20,
-          count: 8,
-          snippet: 'POST /api/users',
-          errors: {},
-        },
-        prev: {
-          totalMs: 25,
-          count: 8,
-          snippet: 'POST /api/users',
-          errors: {},
-        },
-        subFolders: [],
-      },
-    ],
-  };
-
   let maxMs = 0;
   for (const folder of data.subFolders) {
     maxMs = Math.max(maxMs, folder.cur.totalMs, folder.prev?.totalMs ?? 0);
@@ -432,8 +358,9 @@ function RawInfo() {
       <table className="border-collapse">
         <thead>
           <tr className="text-xs text-left ">
+            <th className="py-2 font-normal px-4 border border-gray-200 ">Code</th>
             <th className="py-2 font-normal px-4 border border-gray-200 ">Latency</th>
-            <th className="pt-2 font-normal border border-gray-200 ">
+            <th className="pt-3 relative font-normal border border-gray-200 ">
               <Ruler
                 every={5}
                 max={maxMs}
@@ -443,12 +370,11 @@ function RawInfo() {
                 }}
               />
             </th>
-            <th className="py-2 font-normal px-4 border border-gray-200 ">Code</th>
             <th className="py-2 font-normal px-4 border border-gray-200 ">Count</th>
             <th className="py-2 font-normal px-4 border border-gray-200 ">Errors</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="group">
           {data.subFolders.map((folder, i) => {
             return (
               <Folder
