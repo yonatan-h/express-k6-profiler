@@ -131,3 +131,89 @@ export const data: SpanFolder = {
     },
   ],
 };
+
+export const sampleDetails = {
+  snippet: 'auth',
+
+  spanType: 'middleware' as const,
+
+  suggestions: [
+    {
+      confidence: 'easy' as const,
+
+      content:
+        'Cache decoded JWT sessions for short-lived tokens to avoid repeated verification work.',
+
+      potentialGain: 18,
+    },
+
+    {
+      confidence: 'medium' as const,
+
+      content:
+        'Move getUserById() behind an in-memory request cache to reduce duplicate DB lookups during Promise.all execution.',
+
+      potentialGain: 9,
+    },
+
+    {
+      confidence: 'hard' as const,
+
+      content:
+        'Replace synchronous JWT verification with a lighter-weight session strategy for internal APIs.',
+
+      potentialGain: 35,
+    },
+  ],
+
+  filePath:
+    '/Users/yonatan/projects/express-k6-profiler/src/middleware/auth.ts',
+
+  line: 27,
+
+  errors: {
+    E401: {
+      count: 14,
+      message: 'Unauthorized: missing bearer token',
+    },
+
+    E_DB_TIMEOUT: {
+      count: 3,
+      message:
+        'Database query exceeded timeout threshold of 5000ms',
+    },
+  },
+
+  code: `
+app.post('/api/users', async (req, res) => {
+  const name = Abebe ${Math.round(Math.random() * 1000)};
+  const email = abebe${Math.round(Math.random() * 10000000)};
+  const password = example;
+  console.log('creating', { name, email, password });
+  await UserModel.create({ name, email, password });
+  res.status(201).json({ message: 'user created' });
+});
+
+app.post('/api/orders', (req, res) => {
+  res.status(201).json({ message: 'order created' });
+});
+itemsRouter.post('/deep', (req, res) => {
+  res.status(500).json({ error: 'items cant be created' });
+});
+
+itemsRouter.get('/exclusive', async (req, res) => {
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  throw new Error('my error in endpoin');
+});
+itemsRouter.use(async function handleErrors(
+  err: Error,
+  _req: express.Request,
+  res: express.Response,
+  _next: express.NextFunction,
+) {
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  res.status(500).json({ error: 'Unexpected error:' + err.message });
+});
+
+  `,
+};

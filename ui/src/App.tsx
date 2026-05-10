@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { TbAlertTriangle, TbBrandVscode, TbBulb } from 'react-icons/tb';
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 import { safeDivide } from '../../shared/utils';
 import { IoChevronDown, IoChevronForward } from 'react-icons/io5';
 import type { FolderProps, SpanFolder } from './front-types';
-import { data } from './samples';
+import { sampleDetails, data } from './samples';
 import { TbBrackets, TbDatabase, TbLogs, TbRouteAltRight } from 'react-icons/tb';
 import type { SpanType } from '../../shared/types';
 import { AiOutlineBranches, AiOutlineVerticalAlignMiddle } from 'react-icons/ai';
@@ -13,50 +14,80 @@ const BACKEND_PREFIX = `${window.location.origin}${path}${path.endsWith('/') ? '
 
 export default function App() {
   return (
-    <div className="bg-gray-100 w-screen h-screen flex flex-col gap-3">
-      <div className="flex gap-3 h-screen">
-        <div className="  rounded flex flex-col gap-3">
-          <Suggestions />
-        </div>
-        <div className="flex-1 flex flex-col gap-3">
-          <TopSummary />
+    <div className="bg-gray-100 w-full h-screen p-3 flex flex-col gap-3 text-gray-900">
+      <TopSummary />
+      <div className="flex-1 flex gap-3 min-h-0">
+        <div className="flex-1 flex flex-col gap-3 min-h-0">
           <RawInfo />
+          <Nav />
         </div>
+
+        <Details
+          suggestions={sampleDetails.suggestions}
+          filePath={sampleDetails.filePath}
+          line={sampleDetails.line}
+          code={sampleDetails.code}
+          errors={sampleDetails.errors}
+          snippet={'auth'}
+          spanType={'middleware'}
+        />
       </div>
     </div>
   );
 }
 
 function TopSummary() {
+  const avgLatency = 120;
+  const totalReqs = 10;
+  const status = 'k6 Running';
+  const liveReqs = 5;
+  const avgCpu = 10;
+  const avgRam = 10;
+
   return (
-    <div className="bg-white rounded p-3 flex gap-3 justify-between border border-gray-200">
-      <div className="flex gap-3">
-        <p className="flex flex-col">
-          <span className="text-xs">Avg latency</span>
-          <span className="pr-2 font-bold">240 ms</span>
-          <span className="text-xs text-green-700 font-bold">▼ 25%</span>
-        </p>
+    <div className=" border border-gray-200 rounded flex items-center gap-3 px-3 py-2 text-sm bg-white ">
+      {/* status */}
+      <div className="flex items-center gap-2 ">
+        <div className="h-2 w-2 rounded-full bg-green-500" />
 
-        <div className="w-0.5 border border-gray-200" />
-        <p>
-          <span className="text-xs">Requests</span>
-          <span className="pr-2 ">240</span>
-          <span className="text-xs text-green-700 font-bold">▼ 25%</span>
-        </p>
-
-        <div className="w-0.5 border border-gray-200" />
-        <p>
-          <span className="text-xs">Error rate</span>
-          <span className="pr-2 ">2.1%</span>
-          <span className="text-xs text-green-700 font-bold">▼ 25%</span>
-        </p>
-
-        <div className="w-0.5 border border-gray-200" />
+        <span className="font-semibold">{status}</span>
       </div>
 
-      <BaseLine />
+      <Separator />
+
+      <Metric label="avg latency" value={`${avgLatency}ms`} />
+
+      <Separator />
+
+      <Metric label="live" value={`${liveReqs} reqs`} />
+
+      <Separator />
+
+      <Metric label="total" value={`${totalReqs} reqs`} />
+
+      <Separator />
+
+      <Metric label="cpu" value={`${avgCpu}%`} />
+
+      <Separator />
+
+      <Metric label="ram" value={`${avgRam}%`} />
     </div>
   );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className="text-gray-500 text-xs uppercase">{label}</span>
+
+      <span className="">{value}</span>
+    </div>
+  );
+}
+
+function Separator() {
+  return <div className="h-full w-px bg-gray-200" />;
 }
 
 function BaseLine() {
@@ -135,37 +166,6 @@ function SuggestionBox({ isOpen }: { isOpen: boolean }) {
   );
 }
 
-function BDTable() {
-  return (
-    <div>
-      <table>
-        <thead>
-          <tr className="text-xs">
-            <th className="text-start px-1">Method</th>
-            <th className="text-start px-1">Endpoint</th>
-            <th className="text-start px-1">Latency</th>
-            <th className="text-start px-1">Reqs</th>
-            <th className="text-start px-1">Avg ms</th>
-            <th className="text-start px-1">Errors</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="text-sm">
-            <th className="font-normal">GET</th>
-            <td className="font-normal">/api/users/order/6</td>
-            <td className="font-normal">60%</td>
-            <td className="font-normal">140</td>
-            <td className="font-normal">30ms</td>
-            <td className="font-normal">
-              <span>5 more</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function Ruler({
   every: markEvery,
   max,
@@ -218,7 +218,7 @@ function FolderBar({
   return (
     <div className="flex items-center w-full h-4 relative">
       <div
-        className={`border border-gray-400 absolute h-full rounded-r bg-gray-100 ${
+        className={`border border-gray-800 absolute h-full rounded-r bg-gray-200 ${
           better ? 'z-20' : ''
         }`}
         style={{ width: curWidthPx }}
@@ -226,7 +226,7 @@ function FolderBar({
 
       {prev && (
         <div
-          className={`border border-dashed border-gray-400 rounded-r absolute h-full
+          className={`border border-dashed border-gray-900 rounded-r absolute h-full
 
           ${better ? '' : 'z-20'}`}
           style={{ width: prevWidthPx }}
@@ -301,7 +301,7 @@ function Folder({
   return (
     <>
       <tr className="text-xs">
-        <td className="  border border-gray-200">
+        <td className="  border-y border-gray-200">
           <button
             className=" hover:bg-gray-100  w-full text-left flex"
             onClick={() => setIsOpen(!isOpen)}
@@ -318,17 +318,19 @@ function Folder({
           </button>
         </td>
 
-        <td className="py-1 px-4 border border-gray-200">
+        <td className="py-1 px-4 border-y border-gray-200 text-gray-800">
           {cur.totalMs}ms
           {<span></span>}
         </td>
 
-        <td className="py-1 border border-gray-200">
+        <td className="py-1 border-y border-gray-200">
           <FolderBar cur={cur} prev={prev} maxMs={maxMs} maxWidthPx={maxWidthPx} />
         </td>
 
-        <td className="py-1 px-4 border border-gray-200">{cur.count}</td>
-        <td className="py-1 px-4 border border-gray-200">{errorCount}</td>
+        <td className="py-1 px-4 border-y border-gray-200 text-gray-500">{cur.count}</td>
+        <td className="py-1 px-4 border-y border-gray-200 text-gray-500">
+          {errorCount? <span className='text-red-600 bg-red-50 px-1 rounded'>{errorCount}</span>:<span>-</span>}
+          </td>
       </tr>
       {subFolders.map((folder, i) => (
         <Folder
@@ -350,17 +352,17 @@ function RawInfo() {
   }
   maxMs += 10;
 
-  const maxWidthPx = 200;
+  const maxWidthPx = 300;
 
   return (
     <div className="p-3 bg-white rounded flex-1 overflow-auto border border-gray-200">
       <h2 className="pb-6">Where does the time go?</h2>
       <table className="border-collapse">
         <thead>
-          <tr className="text-xs text-left ">
-            <th className="py-2 font-normal px-4 border border-gray-200 ">Code</th>
-            <th className="py-2 font-normal px-4 border border-gray-200 ">Latency</th>
-            <th className="pt-3 relative font-normal border border-gray-200 ">
+          <tr className="text-xs text-left text-gray-500 uppercase">
+            <th className="py-2 font-normal px-4  border-gray-200 border-y ">Code</th>
+            <th className="py-2 font-normal px-4  border-gray-200 border-y">Latency</th>
+            <th className="pt-3 relative font-normal  border-gray-200 border-y">              
               <Ruler
                 every={5}
                 max={maxMs}
@@ -370,8 +372,8 @@ function RawInfo() {
                 }}
               />
             </th>
-            <th className="py-2 font-normal px-4 border border-gray-200 ">Count</th>
-            <th className="py-2 font-normal px-4 border border-gray-200 ">Errors</th>
+            <th className="py-2 font-normal px-4  border-gray-200 border-y">Count</th>
+            <th className="py-2 font-normal px-4  border-gray-200 border-y">Errors</th>
           </tr>
         </thead>
         <tbody className="group">
@@ -388,6 +390,131 @@ function RawInfo() {
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function Details({
+  snippet,
+  spanType,
+  suggestions,
+  code,
+  line,
+  filePath,
+  errors,
+}: {
+  snippet: string;
+  spanType: SpanType;
+  suggestions: {
+    confidence: 'easy' | 'medium' | 'hard' | 'unknown';
+    content: string;
+    potentialGain: number;
+  }[];
+  code?: string;
+  line?: number;
+  filePath?: string;
+  errors: Record<string, { count: number; message: string }>;
+}) {
+  const entries = Object.entries(errors);
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto border rounded border-gray-200 bg-white flex flex-col gap-3">
+      {/* header */}
+      <div className="flex items-center gap-2 sticky top-0 bg-white p-3 border-b border-gray-200 ">
+        <FolderIcon type={spanType} />
+        <h2 className="font-medium">{snippet}</h2>
+      </div>
+
+      {/* suggestions */}
+      {suggestions.length > 0 && (
+        <div className="px-3">
+          <h2 className="text-sm  mb-3">Suggestions</h2>
+
+          <div className="flex flex-col gap-1">
+            {suggestions.map((s, i) => (
+              <div key={i}>
+                <div className="flex items-center gap-1">
+                  <TbBulb className="text-gray-500" />
+
+                  <Confidence confidence={s.confidence} />
+
+                  <span className="text-sm text-green-700">-{s.potentialGain}ms</span>
+                </div>
+
+                <p className="text-xs max-w-[500px]">{s.content}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* errors */}
+      {entries.length > 0 && (
+        <div className="px-3">
+          <div className="">Errors</div>
+
+          <div className="">
+            {entries.map(([code, err]) => (
+              <div key={code}>
+                <div className="flex items-center gap-2">
+                  <TbAlertTriangle className="text-red-700" />
+
+                  <span className="font-mono text-sm">{code}</span>
+                  <span className="text-xs text-gray-500">×{err.count}</span>
+                </div>
+
+                <div className="ml-6 text-sm text-gray-700">{err.message}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* source */}
+      {(filePath || code) && (
+        <div className='px-3'>
+          <div className="">
+            <div className="">Source</div>
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-mono text-sm">
+                {filePath}
+                {line && `:${line}`}
+              </div>
+            </div>
+          </div>
+
+          {code && (
+            <pre className="p-3 overflow-auto text-xs font-mono bg-gray-50">
+              <code>{code}</code>
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Confidence({ confidence }: { confidence: 'easy' | 'medium' | 'hard' | 'unknown' }) {
+  const styles = {
+    easy: 'text-emerald-700 bg-emerald-50',
+    medium: 'text-amber-700 bg-amber-50',
+    hard: 'text-red-700 bg-red-50',
+    unknown: 'text-gray-600 bg-gray-100',
+  };
+
+  return (
+    <div
+      className={`
+        px-1.5 py-[1px]
+        rounded
+        text-[10px]
+        uppercase
+        tracking-wide
+        ${styles[confidence]}
+      `}
+    >
+      {confidence}
     </div>
   );
 }
