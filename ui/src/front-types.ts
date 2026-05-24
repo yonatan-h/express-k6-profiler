@@ -1,7 +1,7 @@
 import type { SpanType } from "../../shared/types";
 
 export interface SpanFolder {
-    type:SpanType;
+  type:SpanType;
   cur: FolderProps;
   prev: FolderProps | null;
   subFolders: SpanFolder[];

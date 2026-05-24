@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import { Span, SpanCode, SpanType } from '../shared/types';
-import { makeSpan, makeSpanCode, mergeSpan, mergeSpanCodes } from '../shared/utils';
+import { makeSpan, makeSpanCode, mergeSpan, mergeSpanCodes } from '../shared/big-utils';
 import { addError } from './measurement';
 
 export interface SpanStore {

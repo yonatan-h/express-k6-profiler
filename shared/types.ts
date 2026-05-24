@@ -62,8 +62,15 @@ export interface SpanCode {
   type: SpanType;
   snippet: string;
   filePath: string;
-  line:number;
-  col:number;
+  line: number;
+  col: number;
+}
+
+export interface Status {
+  cpuPercent: number;
+  liveRequests: number;
+  memoryGB: number;
+  totalMemoryGB: number;
 }
 
 //span tree roughly expected to have
@@ -80,13 +87,11 @@ export interface SpanCode {
 //             -> tree below handlers ...
 export interface ResponseData {
   backendId: string;
+  isProductionMode: boolean;
 
-  currentInfo: {
-    cpuPercent: number;
-    liveRequests: number;
-    memoryGB: number;
-    totalMemoryGB: number;
-    isProductionMode: boolean;
+  status: {
+    current: Status;
+    peak: Status;
   };
 
   spans: Record<string, Span>;
@@ -96,3 +101,52 @@ export interface ResponseData {
     errors: { message: string; trace: string }[];
   };
 }
+
+export type Change =
+  | {
+      hasPrev: true;
+      cur: number;
+      prev: number;
+      change: number;
+      changePercent: number;
+    }
+  | {
+      hasPrev: false;
+      cur: number;
+      prev: null;
+      change: null;
+      changePercent: null;
+    };
+
+//--extracted data types --//
+export interface ESpanTableData<T> {
+  extra: T;
+  span: Span;
+  avgLatencyContributionMs: Change;
+  totalLatencyContributionMs: Change;
+  totalCount: Change;
+  totalErrorCount: Change;
+  errors: null;
+  nested: ESpanTableData<T>[];
+}
+
+export interface Recording<T> {
+  extra: T;
+  responseDatas: ResponseData[];
+  title: string;
+  startTimeMs: number;
+  endTimeMs: number | null;
+}
+
+export interface Duration {
+  hours: number;
+  minutes: number;
+  seconds: number;
+  hoursStr: string;
+  minutesStr: string;
+  secondsStr: string;
+  days: number;
+  daysStr: string;
+}
+
+export type ChangeType = 'better' | 'worse' | 'almost-same' | 'new' ;

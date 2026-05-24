@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { getStoredData, markEnd, markStart } from './async-storage';
-import type { EndpointSpan, Method, ResponseData, Span, SpanCode } from '../shared/types';
+import type { Method, ResponseData, Span, SpanCode, Status } from '../shared/types';
 import os from 'os';
 import { runWithStorageContext } from './async-storage';
-import { makeSpan, makeSpanCode, mergeTrees } from '../shared/utils';
+import { makeStatus, mergeTrees } from '../shared/big-utils';
 import { stampSkipWrapping } from './utils';
 
 let measurements: ResponseData = createMeasurements();
@@ -11,12 +11,10 @@ let measurements: ResponseData = createMeasurements();
 export function createMeasurements(): ResponseData {
   const data: ResponseData = {
     backendId: os.hostname(), //id has to stay the same after restarts for the same pod
-    currentInfo: {
-      cpuPercent: 0,
-      liveRequests: 0,
-      memoryGB: 0,
-      totalMemoryGB: 0,
-      isProductionMode: process.env.NODE_ENV === 'production',
+    isProductionMode: process.env.NODE_ENV === 'production',
+    status: {
+      current: makeStatus(),
+      peak: makeStatus(),
     },
     spans: {},
     spanCodes: {},
@@ -29,9 +27,9 @@ export function createMeasurements(): ResponseData {
 }
 
 export function resetMeasurements() {
-  const requestsAtMoment = measurements.currentInfo.liveRequests;
+  const requestsAtMoment = measurements.status.current.liveRequests;
   measurements = createMeasurements();
-  measurements.currentInfo.liveRequests = requestsAtMoment;
+  measurements.status.current.liveRequests = requestsAtMoment;
 }
 
 async function getGeneralStatus() {
@@ -61,9 +59,15 @@ async function getGeneralStatus() {
 
 export async function getMeasurements() {
   const { cpuPercent, memoryGB, totalMemoryGB } = await getGeneralStatus();
-  measurements.currentInfo.cpuPercent = cpuPercent;
-  measurements.currentInfo.memoryGB = memoryGB;
-  measurements.currentInfo.totalMemoryGB = totalMemoryGB;
+  const { peak, current } = measurements.status;
+  current.cpuPercent = cpuPercent;
+  current.memoryGB = memoryGB;
+  current.totalMemoryGB = totalMemoryGB;
+
+  peak.cpuPercent = Math.max(peak.cpuPercent, cpuPercent);
+  peak.memoryGB = Math.max(peak.memoryGB, memoryGB);
+  peak.totalMemoryGB = Math.max(peak.totalMemoryGB, totalMemoryGB);
+
   return measurements;
 }
 
@@ -90,17 +94,25 @@ export function addError(error: Error) {
 }
 
 export const measuringMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  measurements.currentInfo.liveRequests++;
+  measurements.status.current.liveRequests++;
+  measurements.status.peak.liveRequests = Math.max(
+    measurements.status.peak.liveRequests,
+    measurements.status.current.liveRequests,
+  );
+
   runWithStorageContext(() => {
     const rootIndex = markStart('root', {}, { snippet: '<root>' });
     const endpointIndex = markStart(
       'endpoint',
-      { method: req.method as Method, path: req.route?.path ? (req.baseUrl + req.route?.path) : '<no match>' },
+      {
+        method: req.method as Method,
+        path: req.route?.path ? req.baseUrl + req.route?.path : '<no match>',
+      },
       { snippet: `${req.method}:${req.path}()` },
     );
     next();
     res.on('finish', () => {
-      measurements.currentInfo.liveRequests--;
+      measurements.status.current.liveRequests--;
 
       markEnd(endpointIndex, {}, {}, { forceCollapse: true, expectSpanContext: true });
       markEnd(rootIndex, {}, {}, { expectSpanContext: true });
@@ -113,4 +125,4 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
   });
 };
 
-stampSkipWrapping(measuringMiddleware)
+stampSkipWrapping(measuringMiddleware);

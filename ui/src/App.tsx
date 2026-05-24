@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { TbAlertTriangle, TbBrandVscode, TbBulb } from 'react-icons/tb';
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { safeDivide } from '../../shared/utils';
+import { getDuration, humanNum, safeDivide } from '../../shared/big-utils';
 import { IoChevronDown, IoChevronForward } from 'react-icons/io5';
 import type { FolderProps, SpanFolder } from './front-types';
 import { sampleDetails, data } from './samples';
 import { TbBrackets, TbDatabase, TbLogs, TbRouteAltRight } from 'react-icons/tb';
 import type { SpanType } from '../../shared/types';
 import { AiOutlineBranches, AiOutlineVerticalAlignMiddle } from 'react-icons/ai';
+import { FaCircle, FaSave, FaStop } from 'react-icons/fa';
+import { MdOutlineStop, MdOutlineStopCircle } from 'react-icons/md';
+import { IoMdArrowDropdown } from 'react-icons/io';
 
 const path = window.location.pathname;
 const BACKEND_PREFIX = `${window.location.origin}${path}${path.endsWith('/') ? '' : '/'}api`;
@@ -15,15 +18,14 @@ const BACKEND_PREFIX = `${window.location.origin}${path}${path.endsWith('/') ? '
 export default function App() {
   return (
     <div className="bg-gray-100 w-full h-screen p-3 flex flex-col gap-3 text-gray-900">
+      <StatusBar />
       <TopSummary />
       <div className="flex-1 flex gap-3 min-h-0">
         <div className="flex-1 flex flex-col gap-3 min-h-0">
-          <RawInfo />
-          <Nav />
+          <Results />
         </div>
 
         <Details
-          suggestions={sampleDetails.suggestions}
           filePath={sampleDetails.filePath}
           line={sampleDetails.line}
           code={sampleDetails.code}
@@ -36,58 +38,224 @@ export default function App() {
   );
 }
 
-function TopSummary() {
+function Recording() {
+  const startTime = new Date().setHours(0, 0, 0, 0);
+  const graphWidthPx = 100;
+  const barWidthPx = 4;
+  const maxBarHeight = 16 * 2;
+  const shownReqs = Math.floor(graphWidthPx / barWidthPx);
+  const [liveReqs, setLiveReqs] = useState(Array.from({ length: shownReqs }, () => 0));
+  const [now, setNow] = useState(new Date().getTime());
+  const totalReqs = 102938;
+  useEffect(() => {
+    setInterval(() => {
+      setLiveReqs((prev) => {
+        const newReqs = [...prev].slice(1);
+        newReqs.push(Math.round(Math.random() * 100));
+        return newReqs;
+      });
+    }, 1000);
+  }, []);
+  useEffect(() => {
+    setInterval(() => {
+      setNow(new Date().getTime());
+    }, 333);
+  }, []);
+  // live requests and graph
+  // minutes
+  // total requests
+  // stop button
+  // cpu and ram usage
+  //
+  const dur = getDuration(now - startTime);
+  const scaleHeight = maxBarHeight / Math.max(...liveReqs);
+  return (
+    <div className="flex  gap-6 items-center">
+      <p className="flex gap-2 items-center">
+        <div>
+          <div className="rounded-full p-2 bg-red-100 flex justify-center items-center border border-red-200">
+            <FaCircle className="text-red-600 " />
+          </div>
+        </div>
+        <div className="flex flex-col justify-between">
+          <span className="uppercase flex items-center text-xs text-gray-500">Recording</span>
+
+          <span className="flex gap-px items-center ">
+            {dur.hours > 0 && <span>{dur.hoursStr}:</span>}
+            {<span>{dur.minutesStr}</span>}:{<span>{dur.secondsStr}</span>}
+          </span>
+        </div>
+      </p>
+
+      <div className="flex flex-col justify-between">
+        <div className="flex items-end">
+          {liveReqs.map((height, i) => {
+            return (
+              <div
+                className=" bg-gray-200 border-t"
+                key={i}
+                style={{ width: barWidthPx + 'px', height: height * scaleHeight + 'px' }}
+              />
+            );
+          })}
+          <div className="h-full w-1 bg-red-300"></div>
+        </div>
+        <span className="text-gray-500 text-xs">{liveReqs[liveReqs.length - 1]} live requests</span>
+      </div>
+
+      <button className="h-full flex gap-1 items-center hover:border-gray-100 rounded">
+        <FaStop className="text-gray-600" />
+        Stop
+      </button>
+    </div>
+  );
+}
+
+function DropDown() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const forCurrent = true;
+  const options = [
+    {
+      id: 'hello1',
+      title: 'Run #1',
+      time: new Date().toString(),
+      avgLatency: 120,
+      totalReqs: 10234,
+    },
+    {
+      id: 'hello2',
+      title: 'Run #2',
+      time: new Date().toString(),
+      avgLatency: 84,
+      totalReqs: 8421,
+    },
+  ];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 rounded border border-gray-400 px-3 py-1  text-sm bg-white"
+      >
+        <div className="text-xs">
+          <div>Run #1</div>
+        </div>
+
+        <IoMdArrowDropdown className="text-gray-500" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute mt-2 rounded shadow-md border border-gray-400 bg-white min-w-[500px] z-50">
+          {forCurrent ? <p className="p-3">Select Run</p> : <p className="p-3">Select Baseline</p>}
+          <hr className="border-gray-200" />
+          {options.map((o) => {
+            const dur = getDuration(Date.now() - new Date(o.time).getTime());
+
+            return (
+              <button key={o.id} className="w-full rounded px-3 py-1 hover:bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="">{o.title}</div>
+
+                  <div className=" text-gray-500">
+                    {dur.hours > 0 && `${dur.hours}h `}
+                    {dur.minutes}m ago
+                  </div>
+                </div>
+
+                <div className="flex gap-4 text-xs text-gray-500">
+                  <span>{o.avgLatency}ms</span>
+                  <span>{o.totalReqs.toLocaleString()} reqs</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+function Recorded() {
   const avgLatency = 120;
   const totalReqs = 10;
   const status = 'k6 Running';
   const liveReqs = 5;
   const avgCpu = 10;
   const avgRam = 10;
-
   return (
-    <div className=" border border-gray-200 rounded flex items-center gap-3 px-3 py-2 text-sm bg-white ">
-      {/* status */}
-      <div className="flex items-center gap-2 ">
-        <div className="h-2 w-2 rounded-full bg-green-500" />
+    <div className="flex gap-6 items-center">
+      <div>
+        <div className="flex flex-col gap-px items-center relative justify-center">
+          <DropDown />
+          <span className="text-xs text-gray-500 absolute z-50 bg-white  rounded-full ">vs</span>
+          <DropDown />
+        </div>
+      </div>
+      {/* <button className="h-full flex gap-1 items-center rounded py-2 px-3 bg-gray-600 text-white">
+        <FaCircle className="text-white" />
+        Start
+      </button> */}
 
-        <span className="font-semibold">{status}</span>
+      <div className="flex flex-col text-xs">
+        <span className="text-gray-500">Average Latency</span>
+        <span className="">{avgLatency}ms (+120ms)</span>
       </div>
 
-      <Separator />
+      <div className="flex flex-col text-xs">
+        <span className="text-gray-500">Error Rate</span>
+        <span className="">10% (-10%)</span>
+      </div>
 
-      <Metric label="avg latency" value={`${avgLatency}ms`} />
-
-      <Separator />
-
-      <Metric label="live" value={`${liveReqs} reqs`} />
-
-      <Separator />
-
-      <Metric label="total" value={`${totalReqs} reqs`} />
-
-      <Separator />
-
-      <Metric label="cpu" value={`${avgCpu}%`} />
-
-      <Separator />
-
-      <Metric label="ram" value={`${avgRam}%`} />
+      <div className="flex flex-col text-xs">
+        <span className="text-gray-500">Total Reqs</span>
+        <span className="">100k (+502)</span>
+      </div>
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function StatusBar() {
+  const liveReqs = 5;
+  const avgRam = 50;
+  const avgCpu = 50;
+  const replicas = 50;
   return (
-    <div className="flex items-baseline gap-1">
-      <span className="text-gray-500 text-xs uppercase">{label}</span>
+    <div className="text-xs w-full flex justify-between items-center">
+      <h1 className="font-bold">KRay</h1>
+      <div className=" flex gap-6 justify-end text-gray-600">
+        <span className="uppercase">Status</span>
+        <div className="h-4 w-px bg-gray-300"></div>
+        <span>{liveReqs} Live Reqs</span>
+        <span>{replicas} Replicas</span>
+        <span>{avgCpu}% Avg CPU</span>
+        <span>{avgRam}% Avg RAM</span>
+      </div>
+    </div>
+  );
+}
 
+function TopSummary() {
+  return (
+    <div className=" border border-gray-200 rounded flex items-center justify-between gap-3 px-3 py-2 text-sm bg-white ">
+      <Recording />
+      {/* <Recorded /> */}
+    </div>
+  );
+}
+
+function Metric({ label, value, change }: { label: string; value: string; change?: string }) {
+  return (
+    <div className="flex flex-col text-xs">
+      <span className="text-gray-500">{label}</span>
       <span className="">{value}</span>
+
+      {change && <span className="">{change}</span>}
     </div>
   );
 }
 
 function Separator() {
-  return <div className="h-full w-px bg-gray-200" />;
+  return <div className="h-full min-h-4 w-px bg-gray-200" />;
 }
 
 function BaseLine() {
@@ -329,8 +497,12 @@ function Folder({
 
         <td className="py-1 px-4 border-y border-gray-200 text-gray-500">{cur.count}</td>
         <td className="py-1 px-4 border-y border-gray-200 text-gray-500">
-          {errorCount? <span className='text-red-600 bg-red-50 px-1 rounded'>{errorCount}</span>:<span>-</span>}
-          </td>
+          {errorCount ? (
+            <span className="text-red-600 bg-red-50 px-1 rounded">{errorCount}</span>
+          ) : (
+            <span>-</span>
+          )}
+        </td>
       </tr>
       {subFolders.map((folder, i) => (
         <Folder
@@ -345,7 +517,7 @@ function Folder({
   );
 }
 
-function RawInfo() {
+function Results() {
   let maxMs = 0;
   for (const folder of data.subFolders) {
     maxMs = Math.max(maxMs, folder.cur.totalMs, folder.prev?.totalMs ?? 0);
@@ -353,16 +525,36 @@ function RawInfo() {
   maxMs += 10;
 
   const maxWidthPx = 300;
+  const avgLatency = 200;
+  const oldAvgLatency = 100;
+  const samples = 100;
+  const oldSamples = 100;
+  const errorRate = 3;
 
   return (
     <div className="p-3 bg-white rounded flex-1 overflow-auto border border-gray-200">
+      <div>
+        <p>
+          <span>{avgLatency}ms</span>
+          <span>
+            {oldAvgLatency > avgLatency
+              ? '+' + (oldAvgLatency - avgLatency)
+              : '-' + (avgLatency - oldAvgLatency)}
+          </span>
+          <span>AVG LATENCY</span>
+        </p>
+        <p>
+          <span>{samples} (+200)</span>
+          <span> requests sampled</span>
+        </p>
+      </div>
       <h2 className="pb-6">Where does the time go?</h2>
       <table className="border-collapse">
         <thead>
           <tr className="text-xs text-left text-gray-500 uppercase">
             <th className="py-2 font-normal px-4  border-gray-200 border-y ">Code</th>
             <th className="py-2 font-normal px-4  border-gray-200 border-y">Latency</th>
-            <th className="pt-3 relative font-normal  border-gray-200 border-y">              
+            <th className="pt-3 relative font-normal  border-gray-200 border-y">
               <Ruler
                 every={5}
                 max={maxMs}
@@ -397,7 +589,6 @@ function RawInfo() {
 function Details({
   snippet,
   spanType,
-  suggestions,
   code,
   line,
   filePath,
@@ -405,11 +596,6 @@ function Details({
 }: {
   snippet: string;
   spanType: SpanType;
-  suggestions: {
-    confidence: 'easy' | 'medium' | 'hard' | 'unknown';
-    content: string;
-    potentialGain: number;
-  }[];
   code?: string;
   line?: number;
   filePath?: string;
@@ -425,28 +611,6 @@ function Details({
         <h2 className="font-medium">{snippet}</h2>
       </div>
 
-      {/* suggestions */}
-      {suggestions.length > 0 && (
-        <div className="px-3">
-          <h2 className="text-sm  mb-3">Suggestions</h2>
-
-          <div className="flex flex-col gap-1">
-            {suggestions.map((s, i) => (
-              <div key={i}>
-                <div className="flex items-center gap-1">
-                  <TbBulb className="text-gray-500" />
-
-                  <Confidence confidence={s.confidence} />
-
-                  <span className="text-sm text-green-700">-{s.potentialGain}ms</span>
-                </div>
-
-                <p className="text-xs max-w-[500px]">{s.content}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* errors */}
       {entries.length > 0 && (
@@ -472,7 +636,7 @@ function Details({
 
       {/* source */}
       {(filePath || code) && (
-        <div className='px-3'>
+        <div className="px-3">
           <div className="">
             <div className="">Source</div>
 
@@ -522,7 +686,6 @@ function Confidence({ confidence }: { confidence: 'easy' | 'medium' | 'hard' | '
 function Nav() {
   return (
     <div className="p-2 w-full bg-white flex justify-between rounded  items-center border border-gray-200">
-      <h1 className="font-bold">KRay</h1>
       <div></div>
     </div>
   );
