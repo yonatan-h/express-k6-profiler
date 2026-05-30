@@ -47,7 +47,7 @@ app.use('/api/items', itemsRouter);
 
 app.post('/api/users', async (req, res) => {
   const name = `Abebe ${Math.round(Math.random() * 1000)}`;
-  const email = `abebe${Math.round(Math.random() * 10000000)}`;
+  const email = `abebe${Math.round(Math.random() * 10000000000000)}`;
   const password = `example`;
   console.log('creating', { name, email, password });
   await UserModel.create({ name, email, password });

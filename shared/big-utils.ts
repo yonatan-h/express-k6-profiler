@@ -149,7 +149,7 @@ export function safeDivide(
 ) {
   let ans = 0;
   a = a ?? 0;
-  b = b ?? 1;
+  b = b || 1;
 
   ans = a / b;
   if (toPercent) {
@@ -224,6 +224,7 @@ function makeChange(cur: number, prev: number | null | undefined): Change {
 }
 
 function getMergedSpansAndSpancodes(responseDatas: ResponseData[]) {
+  console.log('🚀 ~ getMergedSpansAndSpancodes ~ responseDatas:', responseDatas);
   const spans: Record<string, Span> = {};
   const spanCodes: Record<string, SpanCode> = {};
 
@@ -337,10 +338,19 @@ export function genSpanTableData({
   ];
 }
 
+export function makeRecording<T>(partial: Partial<Recording<T>> & { extra: T }): Recording<T> {
+  return {
+    responseDatas: [],
+    title: '',
+    startTimeMs: 0,
+    endTimeMs: 0,
+    ...partial,
+  };
+}
 
 //directly used by react for humans and/or md generator for the agents
 export const extr = {
-  aggrStatus(resDatas: ResponseData[]): Status {
+  getStatus(resDatas: ResponseData[]) {
     const main = makeStatus();
     const others = resDatas.map((r) => r.status.current);
 
@@ -350,10 +360,16 @@ export const extr = {
       main.totalMemoryGB += other.totalMemoryGB;
     }
 
-    main.cpuPercent /= others.length;
-    main.memoryGB /= others.length;
-    main.totalMemoryGB /= others.length;
-    return main;
+    const replicas = resDatas.length;
+    const memoryPercent = safeDivide(main.memoryGB, main.totalMemoryGB, { toPercent: true });
+    const cpuPercent = round(main.cpuPercent);
+
+    return {
+      liveReqs: main.liveRequests,
+      replicas,
+      cpuPercent,
+      memoryPercent,
+    };
   },
 
   peakStatus(resDatas: ResponseData[]): Status {
@@ -447,8 +463,8 @@ export const extr = {
     } else {
       changeType = 'almost-same';
     }
-    
-    if (change.hasPrev){
+
+    if (change.hasPrev) {
       sign = change.change > 0 ? '+' : '-';
     }
 
@@ -495,13 +511,14 @@ export const extr = {
     };
   },
 
-  getRecordingInfo(recording: Recording<unknown>) {
+  getRecordingInfo<T>(recording: Recording<T>) {
     const endTimeMs = recording.endTimeMs ? recording.endTimeMs : new Date().getTime();
 
     return {
       recording,
       duration: getDuration(endTimeMs - recording.startTimeMs),
       ago: getDuration(new Date().getTime() - endTimeMs),
+      totalRequests: getTotalRequests(recording.responseDatas),
     };
   },
 };

@@ -3,13 +3,13 @@ import { check, sleep } from 'k6';
 
 export const options = {
   stages: [
-    { duration: '1s', target: 1 },  // Ramp-up: 0 to 50 users over 2 minutes
-    // { duration: '5s', target: 1 },  // Ramp-up: 0 to 50 users over 2 minutes
-    // { duration: '5s', target: 100 },  // Ramp-up: 0 to 50 users over 2 minutes
-    // { duration: '5s', target: 0 },  // Ramp-up: 0 to 50 users over 2 minutes
-    // { duration: '5s', target: 0 },  // Ramp-up: 0 to 50 users over 2 minutes
-    // { duration: '30s', target: 50 },  // Steady state: Stay at 50 users for 5 minutes
-    // { duration: '5s', target: 0 },   // Ramp-down: 50 to 0 users over 2 minutes
+    // { duration: '1s', target: 1 },  // Ramp-up: 0 to 50 users over 2 minutes
+    { duration: '5s', target: 1 },  // Ramp-up: 0 to 50 users over 2 minutes
+    { duration: '5s', target: 100 },  // Ramp-up: 0 to 50 users over 2 minutes
+    { duration: '5s', target: 0 },  // Ramp-up: 0 to 50 users over 2 minutes
+    { duration: '5s', target: 0 },  // Ramp-up: 0 to 50 users over 2 minutes
+    { duration: '30s', target: 50 },  // Steady state: Stay at 50 users for 5 minutes
+    { duration: '5s', target: 0 },   // Ramp-down: 50 to 0 users over 2 minutes
   ],
 };
 const PORT = 3010;
