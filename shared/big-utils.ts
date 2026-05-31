@@ -174,10 +174,14 @@ export function getDuration(ms: number): Duration {
   const minutesStr = minutes.toString().padStart(2, '0');
   const secondsStr = seconds.toString().padStart(2, '0');
 
-  return { hours, minutes, seconds, hoursStr, minutesStr, secondsStr, days, daysStr };
+  const ret = { hours, minutes, seconds, hoursStr, minutesStr, secondsStr, days, daysStr };
+  return ret;
 }
 
-export function humanNum(num: number) {
+export function humanNum(num: number, rounded = true) {
+  if (rounded) {
+    num = round(num);
+  }
   return num.toLocaleString();
 }
 
@@ -224,7 +228,6 @@ function makeChange(cur: number, prev: number | null | undefined): Change {
 }
 
 function getMergedSpansAndSpancodes(responseDatas: ResponseData[]) {
-  console.log('🚀 ~ getMergedSpansAndSpancodes ~ responseDatas:', responseDatas);
   const spans: Record<string, Span> = {};
   const spanCodes: Record<string, SpanCode> = {};
 
@@ -340,7 +343,8 @@ export function genSpanTableData({
 
 export function makeRecording<T>(partial: Partial<Recording<T>> & { extra: T }): Recording<T> {
   return {
-    responseDatas: [],
+    id: new Date().getTime().toString(),
+    responseDatas: {},
     title: '',
     startTimeMs: 0,
     endTimeMs: 0,
@@ -358,6 +362,7 @@ export const extr = {
       main.cpuPercent += other.cpuPercent;
       main.memoryGB += other.memoryGB;
       main.totalMemoryGB += other.totalMemoryGB;
+      main.liveRequests += other.liveRequests;
     }
 
     const replicas = resDatas.length;
@@ -518,7 +523,7 @@ export const extr = {
       recording,
       duration: getDuration(endTimeMs - recording.startTimeMs),
       ago: getDuration(new Date().getTime() - endTimeMs),
-      totalRequests: getTotalRequests(recording.responseDatas),
+      totalRequests: getTotalRequests(Object.values(recording.responseDatas)),
     };
   },
 };

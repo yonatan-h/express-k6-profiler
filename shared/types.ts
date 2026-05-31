@@ -131,8 +131,9 @@ export interface ESpanTableData<T> {
 }
 
 export interface Recording<T> {
+  id: string;
   extra: T;
-  responseDatas: ResponseData[];
+  responseDatas: Record<string,ResponseData>;
   title: string;
   startTimeMs: number;
   endTimeMs: number | null;

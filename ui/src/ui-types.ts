@@ -1,6 +1,7 @@
 export interface RecordingExtra {
   liveRequests: number[];
+  userHasSaved:boolean;
 }
 
-type StageType = 'idle' | 'start-capture' | 'run-k6' | 'view-results';
-export const typeList: StageType[] = ['idle', 'start-capture', 'run-k6', 'view-results'];
+export type StageType = 'idle' | 'listening' | 'running-k6' | 'saving' | 'view-results';
+export const typeList: StageType[] = ['idle', 'listening', 'running-k6', 'saving', 'view-results'];

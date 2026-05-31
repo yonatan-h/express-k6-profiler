@@ -13,11 +13,13 @@ import { MdOutlineStop, MdOutlineStopCircle } from 'react-icons/md';
 import { IoMdArrowDropdown } from 'react-icons/io';
 import { StatusBar } from './components/status-bar/StatusBar';
 import { GlobalContextProvider } from './global-context';
-import { TopSummary } from './components/top-summary/TopSummary';
+import { TopSummary } from './components/record-bar/RecordBar';
+import { ToastContainer } from 'react-toastify';
 
 export default function App() {
   return (
     <GlobalContextProvider>
+      <ToastContainer />
       <div className="bg-gray-100 w-full h-screen p-3 flex flex-col gap-3 text-gray-900">
         <StatusBar />
         <TopSummary />
@@ -41,9 +43,6 @@ export default function App() {
     </GlobalContextProvider>
   );
 }
-
-
-
 
 function Metric({ label, value, change }: { label: string; value: string; change?: string }) {
   return (

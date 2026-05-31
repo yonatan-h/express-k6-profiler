@@ -16,9 +16,9 @@ export function StatusBar() {
         </span>
         <div className="h-4 w-px bg-gray-300"></div>
         <span>{info.liveReqs} Live Reqs</span>
-        <span>{info.replicas} Replicas</span>
-        <span>{info.cpuPercent}% Avg CPU</span>
-        <span>{info.memoryPercent}% Avg RAM</span>
+        {info.replicas > 1 && <span>{info.replicas} Replicas</span>}
+        <span>{info.cpuPercent}% {info.replicas > 1 ? 'Avg ' : ''}CPU</span>
+        <span>{info.memoryPercent}% {info.replicas > 1 ? 'Avg ' : ''}RAM</span>
       </div>
     </div>
   );
