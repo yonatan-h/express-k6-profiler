@@ -4,10 +4,10 @@ import { ToastContainer } from 'react-toastify';
 import { safeDivide } from '../../shared/big-utils';
 import type { Change, SpanType } from '../../shared/types';
 import { TopSummary } from './components/record-bar/RecordBar';
+import FolderIcon from './components/results/FolderIcon';
+import Results from './components/results/Results';
 import { StatusBar } from './components/status-bar/StatusBar';
 import { GlobalContextProvider } from './global-context';
-import FolderIcon from './results/FolderIcon';
-import Results from './results/Results';
 
 export default function App() {
   return (

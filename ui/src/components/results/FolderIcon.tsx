@@ -1,6 +1,6 @@
 import { AiOutlineBranches } from 'react-icons/ai';
 import { TbBrackets, TbDatabase, TbLogs, TbRouteAltRight } from 'react-icons/tb';
-import type { SpanType } from '../../../shared/types';
+import type { SpanType } from '../../../../shared/types';
 
 const ICONS: Record<SpanType, React.ReactNode> = {
   route: <TbRouteAltRight />,

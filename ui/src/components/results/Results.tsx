@@ -1,8 +1,9 @@
-import { extr, humanNum } from '../../../shared/big-utils';
-import type { Change, ChangeType } from '../../../shared/types';
-import { useGContext } from '../global-context';
+import { extr, humanNum } from '../../../../shared/big-utils';
+import { useGContext } from '../../global-context';
+import ChangeSpan from '../common/ChangeSpan';
 import Folder from './Folder';
 import NoResultsYet from './NoResultsYet';
+import Ruler from './Ruler';
 
 export default function Results() {
   const c = useGContext();
@@ -14,7 +15,7 @@ export default function Results() {
   const data = extr.getSpanTableData(curResponseDatas, [], () => ({}), prevResponseDatas);
 
   const maxMs = extr.getMaxSpanLatencyMs(Object.values(c.curRecord?.responseDatas || {}));
-  const aggrInfo = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
+  const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
 
   const maxWidthPx = 300;
 
@@ -22,18 +23,18 @@ export default function Results() {
     return <NoResultsYet />;
   }
 
-  const latChangeType = extr.getChangeType(aggrInfo.avgLatency, {
-    judge: false,
+  const latChangeType = extr.getChangeType(kpis.avgLatency, {
+    judge: 'less-is-better',
     thresPercent: 5,
   });
 
-  const reqChangeType = extr.getChangeType(aggrInfo.totalRequests, {
-    judge: true,
-    thresPercent: 5,
+  const reqChangeType = extr.getChangeType(kpis.totalRequests, {
+    judge: 'far-is-worse',
+    thresPercent: 10,
   });
 
-  const errChangeType = extr.getChangeType(aggrInfo.errorRate, {
-    judge: false,
+  const errChangeType = extr.getChangeType(kpis.errorRate, {
+    judge: 'less-is-better',
     thresPercent: 5,
   });
 
@@ -50,16 +51,21 @@ export default function Results() {
         <tbody className="divide-y divide-gray-200 text-lg">
           <tr>
             <td className="px-3 py-2">
-              <span>{humanNum(aggrInfo.avgLatency.cur)}ms </span>
-              <ChangeSpan changeType={latChangeType} change={aggrInfo.avgLatency} append="ms" />
+              <span>{humanNum(latChangeType.change.cur)}ms </span>
+              <ChangeSpan changeType={latChangeType} change={kpis.avgLatency} append="ms" />
             </td>
             <td className="px-3 py-2">
-              <span>{humanNum(aggrInfo.totalRequests.cur)}</span>
-              <ChangeSpan changeType={reqChangeType} change={aggrInfo.totalRequests} />
+              <span>{humanNum(reqChangeType.change.cur)} </span>
+              <ChangeSpan
+                changeType={reqChangeType}
+                change={kpis.totalRequests}
+                asPercent
+                append="%"
+              />
             </td>
             <td className="px-3 py-2">
-              <span>{aggrInfo.errorRate.cur.toFixed(1)}%</span>
-              <ChangeSpan changeType={reqChangeType} change={aggrInfo.errorRate} append="%" />
+              <span>{humanNum(errChangeType.change.cur)}% </span>
+              <ChangeSpan changeType={errChangeType} change={kpis.errorRate} append="%" />
             </td>
           </tr>
         </tbody>
@@ -67,17 +73,15 @@ export default function Results() {
       <h2 className="pb-6">Latency Breakdown</h2>
       <table className="border-collapse w-full text-xs">
         <thead>
-          <tr className="uppercase text-gray-500">
+          <tr className="uppercase text-gray-500 text-left">
             <th className="px-4 py-2 font-normal border-y border-gray-200">Code</th>
             <th className="px-4 py-2 font-normal border-y border-gray-200">Latency</th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">
-              {/* <Ruler
-                every={5}
+            <th className="px-4 pt-2 font-normal border-y border-gray-200">
+              <Ruler
+                numDivisions={10}
                 max={maxMs}
                 maxWidthPx={maxWidthPx}
-                labelWhen={(num) => num > 0 && num % 10 === 0 && num < maxMs - 5}
-              /> */}
-              Ruler
+              />
             </th>
             <th className="px-4 py-2 font-normal border-y border-gray-200">Count</th>
             <th className="px-4 py-2 font-normal border-y border-gray-200">Errors</th>
@@ -98,39 +102,5 @@ export default function Results() {
         </tbody>
       </table>
     </div>
-  );
-}
-
-function ChangeSpan({
-  change,
-  changeType,
-  append = '',
-  className = '',
-  rounded = true,
-}: {
-  change: Change;
-  append?: string;
-  changeType: ReturnType<typeof extr.getChangeType>;
-  className?: string;
-  rounded?: boolean;
-}) {
-  if (!change.hasPrev) return null;
-
-  const colorMap: Record<ChangeType, string> = {
-    'almost-same': 'text-gray-500',
-    better: 'text-green-700',
-    worse: 'text-red-700',
-    new: '',
-  };
-
-  return (
-    <span
-      className={[className, colorMap[changeType.type], rounded && ''].filter(Boolean).join(' ')}
-    >
-      {' '}
-      {changeType.sign}
-      {humanNum(change.changePercent)}
-      {append}
-    </span>
   );
 }

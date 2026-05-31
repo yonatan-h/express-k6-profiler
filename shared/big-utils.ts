@@ -1,4 +1,4 @@
-import {
+import type {
   Change,
   ChangeType,
   Duration,
@@ -435,14 +435,11 @@ export const extr = {
     const prev = prevResponseDatas
       ? {
           spans: getMergedSpansAndSpancodes(prevResponseDatas).spans,
-          totalLatency: getTotalLatency(responseDatas),
+          totalLatency: getTotalLatency(prevResponseDatas),
           totalRequests: getTotalRequests(prevResponseDatas),
         }
       : null;
 
-    if (!curSpans['root']) {
-      return [];
-    }
     return genSpanTableData({
       span: curSpans['root'],
       expandSpanTypes,
@@ -463,61 +460,75 @@ export const extr = {
 
   getChangeType(
     change: Change,
-    options: { moreIsBetter: boolean } & ({ thresPercent: number } | { thresChange: number }),
+    options: { judge: 'more-is-better' | 'less-is-better' | 'far-is-worse' } & (
+      | { thresPercent: number }
+      | { thresChange: number }
+    ),
   ) {
-    let changeType: ChangeType = 'almost-same';
+    let changeType: ChangeType = 'neutral';
+    const idealDirection =
+      change.hasPrev &&
+      (options.judge === 'less-is-better' || options.judge === 'more-is-better') &&
+      ((change.change > 0 && options.judge === 'more-is-better') ||
+        (change.change < 0 && options.judge === 'less-is-better'));
+
+    const crossesThres =
+      ('thresPercent' in options &&
+        change.hasPrev &&
+        Math.abs(change.changePercent) > options.thresPercent) ||
+      ('thresChange' in options && change.hasPrev && Math.abs(change.change) > options.thresChange);
+
+    if (crossesThres) {
+      changeType = idealDirection ? 'better' : 'worse';
+    }
+
+    // if (options.judge == 'near-is-better') {
+    //   changeType = 'neutral';
+    // }
+
     let sign = '';
-
-    if (!change.hasPrev) {
-      changeType = 'new';
-    } else if ('thresPercent' in options && change.changePercent > options.thresPercent) {
-      const increased = change.changePercent > 0;
-      changeType = increased === options.moreIsBetter ? 'better' : 'worse';
-    } else if ('thresChange' in options && change.change > options.thresChange) {
-      const increased = change.change > 0;
-      changeType = increased === options.moreIsBetter ? 'better' : 'worse';
-    } else {
-      changeType = 'almost-same';
-    }
-
     if (change.hasPrev) {
-      sign = change.change > 0 ? '+' : '-';
+      sign = change.change >= 0 ? '+' : '-';
     }
 
-    const vertArrows: Record<ChangeType, string> = {
-      'almost-same': '~',
-      better: '↑',
-      worse: '↓',
-      new: '',
+    type arrowKey = 'more' | 'neutral' | 'less';
+    const vertArrows: Record<arrowKey, string> = {
+      more: '↑',
+      neutral: '~',
+      less: '↓',
     };
 
-    const vertFatArrows: Record<ChangeType, string> = {
-      'almost-same': '~',
-      better: '▲',
-      worse: '▼',
-      new: '',
+    const vertFatArrows: Record<arrowKey, string> = {
+      more: '▲',
+      neutral: '~',
+      less: '▼',
     };
-    const horizArrows: Record<ChangeType, string> = {
-      'almost-same': '~',
-      better: '→',
-      worse: '←',
-      new: '',
+    const horizArrows: Record<arrowKey, string> = {
+      more: '→',
+      less: '←',
+      neutral: '~',
     };
 
-    const horizFatArrows: Record<ChangeType, string> = {
-      'almost-same': '~',
-      better: '▶',
-      worse: '◀',
-      new: '',
+    const horizFatArrows: Record<arrowKey, string> = {
+      more: '▶',
+      less: '◀',
+      neutral: '~',
     };
 
-    const horzArrow = horizArrows[changeType];
-    const vertArrow = vertArrows[changeType];
+    let key: arrowKey = 'neutral';
+    if (change.hasPrev && change.change > 0) {
+      key = 'more';
+    } else if (change.hasPrev && change.change < 0) {
+      key = 'less';
+    }
+    const horzArrow = horizArrows[key];
+    const vertArrow = vertArrows[key];
 
-    const vertFatArrow = vertFatArrows[changeType];
-    const horizFatArrow = horizFatArrows[changeType];
+    const vertFatArrow = vertFatArrows[key];
+    const horizFatArrow = horizFatArrows[key];
 
     return {
+      change,
       type: changeType,
       sign,
       horzArrow,

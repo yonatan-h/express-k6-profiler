@@ -93,7 +93,10 @@ export function markEnd(
       }
 
       const spanCodeId = `${spanCode.filePath || '<path>'}-${spanCode.snippet || '<snippet>'}-${spanCode.type}`;
-      const spanKey = `${s.stack.map((s) => s.span.type).join('-')}|${spanCodeId}`;
+      const spanKey =
+        span.type === 'root'
+          ? 'root'
+          : `${s.stack.map((s) => s.span.type).join('-')}|${spanCodeId}`;
 
       span.spanCodeId = spanCodeId;
       span.totalMs = Date.now() - startMs;

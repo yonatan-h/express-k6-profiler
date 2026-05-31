@@ -1,6 +1,5 @@
 export const K_RECORDS = 'k-records';
-export const K_RES_DATAS = 'k-res-datas';
-export const K_INTERVALS = 'k-intervals';
+export const K_RES = 'k-res-datas';
 export const K_BASE_I = 'k-base-i';
 export const K_CUR_I = 'k-cur-i';
 

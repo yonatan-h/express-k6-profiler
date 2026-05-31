@@ -122,7 +122,7 @@ export type Change =
 export interface ESpanTableData<T> {
   extra: T;
   span: Span;
-  snippet:string;
+  snippet: string;
   avgLatencyContributionMs: Change;
   totalLatencyContributionMs: Change;
   totalCount: Change;
@@ -134,7 +134,7 @@ export interface ESpanTableData<T> {
 export interface Recording<T> {
   id: string;
   extra: T;
-  responseDatas: Record<string,ResponseData>;
+  responseDatas: Record<string, ResponseData>;
   title: string;
   startTimeMs: number;
   endTimeMs: number | null;
@@ -151,4 +151,4 @@ export interface Duration {
   daysStr: string;
 }
 
-export type ChangeType = 'better' | 'worse' | 'almost-same' | 'new' ;
+export type ChangeType = 'better' | 'worse' | 'neutral' | 'new';

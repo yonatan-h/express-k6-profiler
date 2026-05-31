@@ -1,22 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { extr, makeRecording } from '../../shared/big-utils';
+import { extr, makeRecording, safeDivide } from '../../shared/big-utils';
 import { type Recording, type ResponseData } from '../../shared/types';
-import {
-  get,
-  K_BASE_I,
-  K_CUR_I,
-  K_INTERVALS as K_RATE,
-  K_RECORDS,
-  K_RES_DATAS as K_RES,
-  set,
-} from './storage';
+import { get, K_BASE_I, K_CUR_I, K_RECORDS, K_RES, set } from './storage';
 import type { RecordingExtra, StageType } from './ui-types';
 
 //context
 interface GlobalContextValue {
   recordings: Recording<RecordingExtra>[];
   responseDatas: ResponseData[];
-  refreshRateMs: number;
   loading: boolean;
   fetchError: string | null;
   stage: StageType;
@@ -34,7 +25,6 @@ interface GlobalContextValue {
 const defaultGlobalContext: GlobalContextValue = {
   recordings: [],
   responseDatas: [],
-  refreshRateMs: -1,
   loading: false,
   fetchError: null,
   stage: 'idle',
@@ -64,9 +54,6 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   const [resDatasMap, setResDatasMap] = useState<Record<string, ResponseData>>(get(K_RES, {}));
   useEffect(() => set(K_RES, resDatasMap), [resDatasMap]);
 
-  const [refreshRateMs, setRefreshRateMs] = useState(get<number>(K_RATE, defaultRefRate));
-  useEffect(() => set(K_RATE, refreshRateMs), [refreshRateMs]);
-
   const [baseIndex, setBaseIndex] = useState<number>(get(K_BASE_I, -1));
   useEffect(() => set(K_BASE_I, baseIndex), [baseIndex]);
 
@@ -75,8 +62,8 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   //---
 
   const [loading, setLoading] = useState(false);
-  console.log('🚀 ~ GlobalContextProvider ~ loading:', loading);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   const recordings = records;
   const responseDatas = Object.values(resDatasMap);
@@ -100,18 +87,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         [data.backendId]: data,
       };
 
-      setResDatasMap(() => {
-        const oldLength = Object.keys(responseDatas).length;
-        const newLength = Object.keys(newResponseDatas).length;
-        if (newLength !== oldLength) {
-          if (newLength <= 0) {
-            setRefreshRateMs(defaultRefRate);
-          } else {
-            setRefreshRateMs(defaultRefRate / newLength);
-          }
-        }
-        return newResponseDatas;
-      });
+      setResDatasMap(newResponseDatas);
 
       setRecords((prevRecords) => {
         const lastRecord = getLast(prevRecords);
@@ -137,6 +113,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
       setFetchError('Failed to fetch recordings');
     } finally {
       setLoading(false);
+      setTick((t) => t + 1);
     }
   };
 
@@ -160,7 +137,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
 
     const iters = Math.max(5, Object.values(resDatasMap).length);
     await Promise.all(
-      Array({ length: iters }).map(async () => {
+      Array.from({ length: iters }).map(async () => {
         const res = await fetch(`${BACKEND_PREFIX}/reset`, { method: 'POST' });
         if (!res.ok) {
           const body = await res.json();
@@ -224,10 +201,11 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   };
 
   useEffect(() => {
-    const interval = setInterval(refresh, refreshRateMs);
-    refresh();
-    return () => clearInterval(interval);
-  }, [refreshRateMs]);
+    const replicaCount = Object.values(resDatasMap).length;
+    const ms = safeDivide(defaultRefRate, replicaCount) || defaultRefRate;
+    const id = setTimeout(() => refresh(), ms);
+    return () => clearTimeout(id);
+  }, [tick]);
 
   return (
     <GlobalContext.Provider
@@ -245,7 +223,6 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         responseDatas,
         loading,
         fetchError,
-        refreshRateMs,
         stage: getStage(),
       }}
     >

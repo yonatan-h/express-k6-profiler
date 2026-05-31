@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { extr, humanNum } from '../../../shared/big-utils';
-import type { ESpanTableData } from '../../../shared/types';
-import type { ESpanTableDataExtra } from '../ui-types';
+import { extr, humanNum } from '../../../../shared/big-utils';
+import type { ESpanTableData } from '../../../../shared/types';
+import type { ESpanTableDataExtra } from '../../ui-types';
 import FolderIcon from './FolderIcon';
 import FolderPad from './FolderPad';
 
@@ -16,14 +16,13 @@ export default function Folder({
   maxMs: number;
   maxWidthPx: number;
 }) {
-  console.log('folder');
   const [isOpen, setIsOpen] = useState(true);
 
   const hasChildren = data.nested.length > 0;
   const errorCount = data.totalErrorCount;
 
   const latencyInfo = extr.getChangeType(data.totalLatencyContributionMs, {
-    moreIsBetter: false,
+    judge: 'less-is-better',
     thresChange: 1,
   });
 
@@ -36,8 +35,8 @@ export default function Folder({
             onClick={() => setIsOpen(!isOpen)}
           >
             {Array.from({ length: depth + 1 }).map((_, i) => {
-              if (!hasChildren || i !== depth) return <FolderPad dir="line" />;
-              return <FolderPad dir={isOpen ? 'down' : 'right'} />;
+              if (!hasChildren || i !== depth) return <FolderPad key={i} dir="line" />;
+              return <FolderPad key={i} dir={isOpen ? 'down' : 'right'} />;
             })}
 
             <span className="py-1 flex gap-1">
@@ -69,19 +68,15 @@ export default function Folder({
           )}
         </td>
       </tr>
-      {data.nested.map(
-        (folder, i) =>
-          null
-        //  && (
-        //     <Folder
-        //       key={`${folder.snippet}-${i}`}
-        //       data={folder}
-        //       depth={depth + 1}
-        //       maxMs={maxMs}
-        //       maxWidthPx={maxWidthPx}
-        //     />
-        //   ),
-      )}
+      {data.nested.map((folder, i) => (
+        <Folder
+          key={`${folder.snippet}-${i}`}
+          data={folder}
+          depth={depth + 1}
+          maxMs={maxMs}
+          maxWidthPx={maxWidthPx}
+        />
+      ))}
     </>
   );
 }
