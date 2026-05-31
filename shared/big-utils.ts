@@ -263,19 +263,20 @@ function getKpis(responseDatas: ResponseData[]) {
 }
 
 function makeESpanTableData<T>(
-  partialData: Partial<ESpanTableData<unknown>> & { extra: T; span: Span },
+  partialData: Partial<ESpanTableData<T>> & { extra: T; span: Span },
 ): ESpanTableData<T> {
   const nested = [] as ESpanTableData<T>[];
 
-  const result = {
+  const result: ESpanTableData<T> = {
     avgLatencyContributionMs: makeChange(0, null),
     totalLatencyContributionMs: makeChange(0, null),
     totalCount: makeChange(0, null),
     totalErrorCount: makeChange(0, null),
     errors: null,
     nested,
+    snippet: '<snippet>',
     ...partialData,
-  } as ESpanTableData<T>;
+  };
 
   return result;
 }
@@ -295,22 +296,24 @@ interface CurPrevArgs {
   totalLatency: number;
   totalRequests: number;
 }
-export function genSpanTableData({
+export function genSpanTableData<T>({
   span,
   expandSpanTypes,
   cur,
   prev,
+  createExtra,
 }: {
   span: Span;
   expandSpanTypes: SpanType[];
   cur: CurPrevArgs;
   prev: null | CurPrevArgs;
-}): ESpanTableData<null>[] {
-  const children: ESpanTableData<null>[] = [];
+  createExtra: () => T;
+}): ESpanTableData<T>[] {
+  const children: ESpanTableData<T>[] = [];
   const { spans, totalLatency, totalRequests } = cur;
   for (const subSpanId of span.spans) {
     const subSpan = spans[subSpanId];
-    children.push(...genSpanTableData({ span: subSpan, cur, expandSpanTypes, prev }));
+    children.push(...genSpanTableData({ span: subSpan, cur, expandSpanTypes, prev, createExtra }));
   }
 
   if (expandSpanTypes.includes(span.type)) {
@@ -327,15 +330,18 @@ export function genSpanTableData({
     prev ? safeDivide(totalLatencyContributionMs.prev, totalCount.prev) : null,
   );
   const totalErrorCount = makeChange(0, 0);
+  const snippet = span.type;
   const errors = null;
 
   return [
     makeESpanTableData({
-      extra: null,
+      extra: createExtra(),
       span,
       totalLatencyContributionMs,
       avgLatencyContributionMs,
       totalCount,
+      snippet,
+      errors,
       totalErrorCount,
     }),
   ];
@@ -412,11 +418,12 @@ export const extr = {
     return spanCodes[span.spanCodeId].snippet;
   },
 
-  getSpanTableData(
+  getSpanTableData<T>(
     responseDatas: ResponseData[],
     expandSpanTypes: SpanType[],
+    createExtra: () => T,
     prevResponseDatas?: ResponseData[],
-  ): ESpanTableData<null>[] {
+  ): ESpanTableData<T>[] {
     const { spans: curSpans } = getMergedSpansAndSpancodes(responseDatas);
 
     const cur = {
@@ -433,11 +440,15 @@ export const extr = {
         }
       : null;
 
+    if (!curSpans['root']) {
+      return [];
+    }
     return genSpanTableData({
       span: curSpans['root'],
       expandSpanTypes,
       cur,
       prev,
+      createExtra,
     });
   },
 

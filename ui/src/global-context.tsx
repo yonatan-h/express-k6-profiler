@@ -1,16 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { type Recording, type ResponseData } from '../../shared/types';
 import { extr, makeRecording } from '../../shared/big-utils';
+import { type Recording, type ResponseData } from '../../shared/types';
+import {
+  get,
+  K_BASE_I,
+  K_CUR_I,
+  K_INTERVALS as K_RATE,
+  K_RECORDS,
+  K_RES_DATAS as K_RES,
+  set,
+} from './storage';
 import type { RecordingExtra, StageType } from './ui-types';
 
 //context
 interface GlobalContextValue {
   recordings: Recording<RecordingExtra>[];
   responseDatas: ResponseData[];
-  refreshRate: number;
+  refreshRateMs: number;
   loading: boolean;
   fetchError: string | null;
-  refreshIntervalMs: number;
   stage: StageType;
   startRecording: (title: string) => Promise<void>;
   getLastRecord: () => Recording<RecordingExtra> | undefined;
@@ -26,10 +34,9 @@ interface GlobalContextValue {
 const defaultGlobalContext: GlobalContextValue = {
   recordings: [],
   responseDatas: [],
-  refreshRate: -1,
+  refreshRateMs: -1,
   loading: false,
   fetchError: null,
-  refreshIntervalMs: 0,
   stage: 'idle',
   startRecording: async () => {},
   getLastRecord: () => undefined,
@@ -45,22 +52,34 @@ const defaultGlobalContext: GlobalContextValue = {
 const GlobalContext = React.createContext<GlobalContextValue>(defaultGlobalContext);
 
 //provider
-const defaultRefreshRate = 1000;
+const defaultRefRate = 1000;
 const path = window.location.pathname;
 const BACKEND_PREFIX = `${window.location.origin}${path}${path.endsWith('/') ? '' : '/'}api`;
 
 export function GlobalContextProvider({ children }: { children: React.ReactNode }) {
-  const [records, setRecords] = useState<Recording<RecordingExtra>[]>([]);
-  const [responseDatasMap, setResponseDataMap] = useState<Record<string, ResponseData>>({});
-  const [refreshIntervalMs, setRefreshRateMs] = useState(defaultRefreshRate);
-  const [baseIndex, setBaseIndex] = useState<number>(-1);
-  const [curIndex, setCurIndex] = useState<number>(-1);
+  //core states that are saved in local storage
+  const [records, setRecords] = useState<Recording<RecordingExtra>[]>(get(K_RECORDS, []));
+  useEffect(() => set(K_RECORDS, records), [records]);
+
+  const [resDatasMap, setResDatasMap] = useState<Record<string, ResponseData>>(get(K_RES, {}));
+  useEffect(() => set(K_RES, resDatasMap), [resDatasMap]);
+
+  const [refreshRateMs, setRefreshRateMs] = useState(get<number>(K_RATE, defaultRefRate));
+  useEffect(() => set(K_RATE, refreshRateMs), [refreshRateMs]);
+
+  const [baseIndex, setBaseIndex] = useState<number>(get(K_BASE_I, -1));
+  useEffect(() => set(K_BASE_I, baseIndex), [baseIndex]);
+
+  const [curIndex, setCurIndex] = useState<number>(get(K_CUR_I, -1));
+  useEffect(() => set(K_CUR_I, curIndex), [curIndex]);
+  //---
 
   const [loading, setLoading] = useState(false);
+  console.log('🚀 ~ GlobalContextProvider ~ loading:', loading);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const responseDatas = Object.values(responseDatasMap);
   const recordings = records;
+  const responseDatas = Object.values(resDatasMap);
 
   const getLast = (recordings: Recording<RecordingExtra>[]) => {
     const lastRecord: Recording<RecordingExtra> | undefined = recordings?.[recordings.length - 1];
@@ -73,50 +92,52 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
       setLoading(true);
       setFetchError(null);
       res = await fetch(`${BACKEND_PREFIX}/all`);
+      if (!res.ok) throw new Error('API error');
+
+      const data = (await res.json()) as ResponseData;
+      const newResponseDatas = {
+        ...resDatasMap,
+        [data.backendId]: data,
+      };
+
+      setResDatasMap(() => {
+        const oldLength = Object.keys(responseDatas).length;
+        const newLength = Object.keys(newResponseDatas).length;
+        if (newLength !== oldLength) {
+          if (newLength <= 0) {
+            setRefreshRateMs(defaultRefRate);
+          } else {
+            setRefreshRateMs(defaultRefRate / newLength);
+          }
+        }
+        return newResponseDatas;
+      });
+
+      setRecords((prevRecords) => {
+        const lastRecord = getLast(prevRecords);
+        if (lastRecord && lastRecord.endTimeMs === null) {
+          const startTimeMs = lastRecord.startTimeMs;
+          const nextRecords = prevRecords.slice(0, -1);
+          return [
+            ...nextRecords,
+            makeRecording({
+              ...lastRecord,
+              responseDatas: newResponseDatas,
+              startTimeMs,
+              extra: {
+                ...lastRecord.extra,
+                liveRequests: [...lastRecord.extra.liveRequests, data.status.current.liveRequests],
+              },
+            }),
+          ];
+        }
+        return prevRecords;
+      });
     } catch (error) {
       setFetchError('Failed to fetch recordings');
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const data = (await res.json()) as ResponseData;
-    const newResponseDatas = {
-      ...responseDatasMap,
-      [data.backendId]: data,
-    };
-
-    setResponseDataMap(() => {
-      const oldLength = Object.keys(responseDatas).length;
-      const newLength = Object.keys(newResponseDatas).length;
-      if (newLength !== oldLength) {
-        if (newLength <= 0) {
-          setRefreshRateMs(defaultRefreshRate);
-        } else {
-          setRefreshRateMs(defaultRefreshRate / newLength);
-        }
-      }
-      return newResponseDatas;
-    });
-
-    setRecords((prevRecords) => {
-      const lastRecord = getLast(prevRecords);
-      if (lastRecord && lastRecord.endTimeMs === null) {
-        const startTimeMs = lastRecord.startTimeMs;
-        const nextRecords = prevRecords.slice(0, -1);
-        return [
-          ...nextRecords,
-          makeRecording({
-            ...lastRecord,
-            responseDatas: newResponseDatas,
-            startTimeMs,
-            extra: {
-              ...lastRecord.extra,
-              liveRequests: [...lastRecord.extra.liveRequests, data.status.current.liveRequests],
-            },
-          }),
-        ];
-      }
-      return prevRecords;
-    });
   };
 
   const stopRecording = () => {
@@ -137,7 +158,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
       lastRecord.endTimeMs = new Date().getTime();
     }
 
-    const iters = Math.max(5, Object.values(responseDatasMap).length);
+    const iters = Math.max(5, Object.values(resDatasMap).length);
     await Promise.all(
       Array({ length: iters }).map(async () => {
         const res = await fetch(`${BACKEND_PREFIX}/reset`, { method: 'POST' });
@@ -203,10 +224,10 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   };
 
   useEffect(() => {
-    const interval = setInterval(refresh, refreshIntervalMs);
+    const interval = setInterval(refresh, refreshRateMs);
     refresh();
     return () => clearInterval(interval);
-  }, [refreshIntervalMs, getStage()]);
+  }, [refreshRateMs]);
 
   return (
     <GlobalContext.Provider
@@ -222,10 +243,9 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         deleteRecord,
         recordings,
         responseDatas,
-        refreshRate: refreshIntervalMs,
         loading,
         fetchError,
-        refreshIntervalMs,
+        refreshRateMs,
         stage: getStage(),
       }}
     >
