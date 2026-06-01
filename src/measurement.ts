@@ -1,9 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
-import { getStoredData, markEnd, markStart } from './async-storage';
-import type { Method, ResponseData, Span, SpanCode, Status } from '../shared/types';
+import { NextFunction, Request, Response } from 'express';
 import os from 'os';
-import { runWithStorageContext } from './async-storage';
-import { makeStatus, mergeTrees } from '../shared/big-utils';
+import { makeSpan, makeSpanError, makeStatus, mergeTrees } from '../shared/big-utils';
+import type { EndpointSpan, MiddlewareSpan, ResponseData, RouteSpan, Span } from '../shared/types';
+import { getStoredData, markEnd, markStart, runWithStorageContext } from './async-storage';
 import { stampSkipWrapping } from './utils';
 
 let measurements: ResponseData = createMeasurements();
@@ -17,7 +16,6 @@ export function createMeasurements(): ResponseData {
       peak: makeStatus(),
     },
     spans: {},
-    spanCodes: {},
     debug: {
       errors: [],
     },
@@ -72,17 +70,38 @@ export async function getMeasurements() {
 }
 
 export function saveEntries({
-  spanCodes,
   spans,
+  returnedSpan,
+  req,
 }: {
-  spanCodes: Record<string, SpanCode>;
   spans: Record<string, Span>;
+  returnedSpan: MiddlewareSpan | RouteSpan | null;
+  req: Request;
 }) {
+  let endpointKey: string | null = null;
+  for (const [key, span] of Object.entries(spans)) {
+    if (span.type === 'end-point') endpointKey = key;
+  }
+
+  if (!endpointKey) {
+    addError(new Error('No endpoint span found in spans ' + JSON.stringify(spans)));
+    return;
+  }
+
+  let path: string = req.path;
+  let errors = makeSpanError();
+
+  if (returnedSpan) {
+    path = returnedSpan.path;
+    errors = returnedSpan.errors;
+  }
+
+  const endpoint = spans[endpointKey] as EndpointSpan;
+  spans[endpointKey] = makeSpan({ ...endpoint, errors, path });
+
   mergeTrees({
     mainTree: measurements.spans,
     treeToAdd: spans,
-    mainSpanCodes: measurements.spanCodes,
-    spanCodesToAdd: spanCodes,
   });
 }
 
@@ -94,6 +113,10 @@ export function addError(error: Error) {
 }
 
 export const measuringMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  if (req.path.includes('/__profile')) {
+    return next();
+  }
+
   measurements.status.current.liveRequests++;
   measurements.status.peak.liveRequests = Math.max(
     measurements.status.peak.liveRequests,
@@ -101,26 +124,17 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
   );
 
   runWithStorageContext(() => {
-    const rootIndex = markStart('root', {}, { snippet: '<root>' });
-    const endpointIndex = markStart(
-      'endpoint',
-      {
-        method: req.method as Method,
-        path: req.route?.path ? req.baseUrl + req.route?.path : '<no match>',
-      },
-      { snippet: `${req.method}:${req.path}()` },
-    );
+    const rootIndex = markStart({ type: 'root', snippet: '<root>' }, {});
+    const endpointIndex = markStart({ type: 'end-point' }, {});
     next();
     res.on('finish', () => {
       measurements.status.current.liveRequests--;
 
-      markEnd(endpointIndex, {}, {}, { forceCollapse: true, expectSpanContext: true });
-      markEnd(rootIndex, {}, {}, { expectSpanContext: true });
-      const store = getStoredData();
+      markEnd(endpointIndex, {}, { expectSpanContext: true, forceCollapse: true });
+      markEnd(rootIndex, {}, { expectSpanContext: true });
 
-      if (store) {
-        saveEntries({ spans: store.spans, spanCodes: store.spanCodes });
-      }
+      const data = getStoredData();
+      if (data) saveEntries({ spans: data.spans, req, returnedSpan: data.returnedSpan });
     });
   });
 };

@@ -54,7 +54,7 @@ export function wrapRouter(router: Router, prefixPath: string) {
       }
     } else if (Array.isArray((layer.handle as Router).stack)) {
       wrapRouter(layer.handle as Router, prefixPath + (layer.path || '-'));
-      log("🚀 ~ wrapRouter ~ layer:", prefixPath, layer)
+      // log("🚀 ~ wrapRouter ~ layer:", prefixPath, layer)
     } else if (typeof layer.handle === 'function') {
       //is a middleware, put as app.use probably
       const error = new Error();

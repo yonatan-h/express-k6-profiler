@@ -91,7 +91,7 @@ export default function Results() {
           {data.map((folder, i) => {
             return (
               <Folder
-                key={`${folder.span.spanCodeId}-${i}`}
+                key={`${folder.span.spanCode.filePath}-${folder.span.spanCode.snippet}-${i}`}
                 data={folder}
                 maxMs={maxMs}
                 depth={0}

@@ -51,7 +51,7 @@ function wrapMethod(
       methodName: `${MyModel.modelName}.${methodName}`,
       args,
     });
-    const startIndex = markStart('db', {}, { line, filePath, snippet }, { isUserLevel });
+    const startIndex = markStart({ type: 'db', line, filePath, snippet }, { isUserLevel });
 
     const result: Promise<unknown> | Query<unknown, unknown> = method(...args);
     if ('exec' in result) {

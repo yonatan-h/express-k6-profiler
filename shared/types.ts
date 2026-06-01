@@ -4,16 +4,23 @@ export type SpanType =
   | 'middleware'
   | 'db'
   | 'route'
-  | 'endpoint'
+  | 'end-point'
   | 'promise-all'
   | 'root'
   | 'console-log';
-interface BaseSpan {
+export interface BaseSpan {
   type: SpanType;
-  spanCodeId: string;
   totalMs: number;
   count: number;
   spans: string[];
+
+  snippet: string;
+  code: string; //is best effort code
+  filePath?: string;
+  line?: number;
+  col?: number;
+
+  errors: { count: number; samples: string[] };
 }
 
 export const rootSpanKey = '<root-key>';
@@ -24,6 +31,7 @@ export interface RootSpan extends BaseSpan {
 
 export interface MiddlewareSpan extends BaseSpan {
   type: 'middleware';
+  path: string;
 }
 
 export interface PromiseAllSpan extends BaseSpan {
@@ -36,13 +44,14 @@ export interface DbSpan extends BaseSpan {
 
 export interface RouteSpan extends BaseSpan {
   type: 'route';
+  method: Method;
+  path: string;
 }
 
 export interface EndpointSpan extends BaseSpan {
-  type: 'endpoint';
+  type: 'end-point';
   method: Method;
   path: string;
-  errors: { [code: string]: { count: number; message: string } };
 }
 
 export interface ConsoleLogSpan extends BaseSpan {
@@ -54,17 +63,9 @@ export type Span =
   | PromiseAllSpan
   | DbSpan
   | RouteSpan
-  | EndpointSpan
   | RootSpan
-  | ConsoleLogSpan;
-
-export interface SpanCode {
-  type: SpanType;
-  snippet: string;
-  filePath: string;
-  line: number;
-  col: number;
-}
+  | ConsoleLogSpan
+  | EndpointSpan;
 
 export interface Status {
   cpuPercent: number;
@@ -95,7 +96,6 @@ export interface ResponseData {
   };
 
   spans: Record<string, Span>;
-  spanCodes: Record<string, SpanCode>;
 
   debug: {
     errors: { message: string; trace: string }[];

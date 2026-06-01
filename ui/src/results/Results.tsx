@@ -1,8 +1,8 @@
 import { extr, humanNum } from '../../../shared/big-utils';
 import type { Change, ChangeType } from '../../../shared/types';
 import { useGContext } from '../global-context';
-import Folder from './Folder';
-import NoResultsYet from './NoResultsYet';
+import Folder from '../components/results/Folder';
+import NoResultsYet from '../components/results/NoResultsYet';
 
 export default function Results() {
   const c = useGContext();
@@ -23,17 +23,17 @@ export default function Results() {
   }
 
   const latChangeType = extr.getChangeType(aggrInfo.avgLatency, {
-    judge: false,
+    judge: 'less-is-better',
     thresPercent: 5,
   });
 
   const reqChangeType = extr.getChangeType(aggrInfo.totalRequests, {
-    judge: true,
+    judge: 'more-is-better',
     thresPercent: 5,
   });
 
   const errChangeType = extr.getChangeType(aggrInfo.errorRate, {
-    judge: false,
+    judge: 'less-is-better',
     thresPercent: 5,
   });
 
@@ -87,7 +87,7 @@ export default function Results() {
           {data.map((folder, i) => {
             return (
               <Folder
-                key={`${folder.span.spanCodeId}-${i}`}
+                key={`${folder.span.filePath}-${folder.span.snippet}-${i}`}
                 data={folder}
                 maxMs={maxMs}
                 depth={0}
@@ -117,7 +117,7 @@ function ChangeSpan({
   if (!change.hasPrev) return null;
 
   const colorMap: Record<ChangeType, string> = {
-    'almost-same': 'text-gray-500',
+    neutral: 'text-gray-500',
     better: 'text-green-700',
     worse: 'text-red-700',
     new: '',

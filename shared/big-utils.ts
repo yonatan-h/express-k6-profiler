@@ -1,47 +1,53 @@
-import type {
-  Change,
-  ChangeType,
-  Duration,
-  EndpointSpan,
-  ESpanTableData,
-  Recording,
-  ResponseData,
-  Span,
-  SpanCode,
-  SpanType,
-  Status,
+import {
+  rootSpanKey,
+  type Change,
+  type ChangeType,
+  type Duration,
+  type ESpanTableData,
+  type Recording,
+  type ResponseData,
+  type Span,
+  type SpanType,
+  type Status,
 } from './types';
 
+export function makeSpanError(...samples: string[]): Span['errors'] {
+  return {
+    count: samples.length,
+    samples,
+  };
+}
+
 export function makeSpan(partial: Partial<Span> & { type: SpanType }): Span {
+  const base = {
+    totalMs: 0,
+    count: 0,
+    spans: [],
+    snippet: '',
+    code: '',
+    errors: makeSpanError(),
+    ...partial,
+  };
+
   switch (partial.type) {
-    case 'middleware':
-      return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
-    case 'db':
-      return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
-    case 'endpoint':
-      return {
-        spanCodeId: '',
-        totalMs: 0,
-        count: 0,
-        method: 'get',
-        path: '<badpath>',
-        errors: {},
-        spans: [],
-        ...partial,
-      };
     case 'route':
-      return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
+      return { method: 'get', path: '', ...base, type: 'route' };
+    case 'middleware':
+      return { ...base, path: '', type: 'middleware' };
+    case 'db':
+      return { ...base, type: 'db' };
     case 'promise-all':
-      return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
+      return { ...base, type: 'promise-all' };
     case 'root':
-      return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
+      return { ...base, type: 'root' };
     case 'console-log':
-      return { spanCodeId: '', totalMs: 0, count: 0, spans: [], ...partial };
+      return { ...base, type: 'console-log' };
+    case 'end-point':
+      return { method: 'get', path: '', ...base, type: 'end-point' };
     default:
       throw new Error(`Invalid span type ${(partial as any).type}`);
   }
 }
-
 //modifies existingSpan but returns reference
 export function mergeSpan({
   type,
@@ -57,87 +63,36 @@ export function mergeSpan({
     throw new Error(`Mismatched span types: ${types}`);
   }
 
-  const existing = existingSpan || makeSpan({ type: type });
+  const existing = existingSpan || makeSpan({ type });
   existing.totalMs += newSpan.totalMs ?? 0;
   existing.count += newSpan.count ?? 0;
-  existing.spanCodeId = newSpan.spanCodeId ?? existing.spanCodeId;
+  existing.snippet = newSpan.snippet ?? existing.snippet;
+  existing.code = newSpan.code ?? existing.code;
+  existing.filePath = newSpan.filePath ?? existing.filePath;
+  existing.line = newSpan.line ?? existing.line;
+  existing.col = newSpan.col ?? existing.col;
 
   const mergedSubSpans = new Set<string>();
-
   existing.spans.forEach((s) => mergedSubSpans.add(s));
   if (newSpan.spans) {
     newSpan.spans.forEach((s) => mergedSubSpans.add(s));
   }
   existing.spans = Array.from(mergedSubSpans);
 
-  if (type === 'endpoint' && existing.type === 'endpoint') {
-    const partialNewSpan = newSpan as Partial<EndpointSpan>;
-    existing.method = partialNewSpan.method ?? (existing as EndpointSpan).method;
-    existing.path = partialNewSpan.path ?? (existing as EndpointSpan).path;
-    existing.errors = { ...(partialNewSpan.errors ?? {}), ...(existing.errors ?? {}) };
-  }
   return existing;
-}
-
-export function makeSpanCode(partial: Partial<SpanCode> & { type: SpanType }): SpanCode {
-  return {
-    type: partial.type,
-    snippet: partial?.snippet || '',
-    filePath: partial?.filePath || '',
-    line: partial?.line || -1,
-    col: partial?.col || -1,
-  };
-}
-
-export function mergeSpanCodes({
-  type,
-  newSpanCode,
-  existingSpanCode,
-}: {
-  type: SpanType;
-  newSpanCode: Partial<SpanCode>;
-  existingSpanCode?: SpanCode;
-}) {
-  const existing = existingSpanCode || makeSpanCode({ type: type });
-  existing.snippet = newSpanCode.snippet ?? existing.snippet;
-  existing.filePath = newSpanCode.filePath ?? existing.filePath;
-  existing.line = newSpanCode.line ?? existing.line;
-  return existing;
-}
-
-export function allSpansHaveCodes(
-  spans: Record<string, Span>,
-  spanCodes: Record<string, SpanCode>,
-) {
-  for (const key in spans) {
-    if (!spanCodes[spans[key].spanCodeId]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 export function mergeTrees(trees: {
   mainTree: Record<string, Span>;
   treeToAdd: Record<string, Span>;
-  mainSpanCodes: Record<string, SpanCode>;
-  spanCodesToAdd: Record<string, SpanCode>;
 }) {
-  const { mainTree, treeToAdd, mainSpanCodes, spanCodesToAdd } = trees;
+  const { mainTree, treeToAdd } = trees;
 
   for (const key in treeToAdd) {
     mainTree[key] = mergeSpan({
       type: treeToAdd[key].type,
       newSpan: treeToAdd[key],
       existingSpan: mainTree[key],
-    });
-  }
-
-  for (const key in spanCodesToAdd) {
-    mainSpanCodes[key] = mergeSpanCodes({
-      type: spanCodesToAdd[key].type,
-      newSpanCode: spanCodesToAdd[key],
-      existingSpanCode: mainSpanCodes[key],
     });
   }
 }
@@ -193,7 +148,7 @@ export function sum<T>(getItem: (item: T) => number, ...items: T[]): number {
   return items.reduce((sum, item) => sum + getItem(item), 0);
 }
 
-export function toItems<T>(filterItem: (item: T) => boolean, obj: Record<string, T>) {
+export function getItems<T>(filterItem: (item: T) => boolean, obj: Record<string, T>) {
   return Object.values(obj).filter(filterItem);
 }
 
@@ -227,37 +182,35 @@ function makeChange(cur: number, prev: number | null | undefined): Change {
   };
 }
 
-function getMergedSpansAndSpancodes(responseDatas: ResponseData[]) {
+function getMergedSpans(responseDatas: ResponseData[]) {
   const spans: Record<string, Span> = {};
-  const spanCodes: Record<string, SpanCode> = {};
 
   for (const r of responseDatas) {
     mergeTrees({
       mainTree: spans,
       treeToAdd: r.spans,
-      mainSpanCodes: spanCodes,
-      spanCodesToAdd: r.spanCodes,
     });
   }
-  return { spans, spanCodes };
+  return spans;
 }
 
+const isEndpointSpan = (s: Span) => s.type === 'end-point';
 function getKpis(responseDatas: ResponseData[]) {
-  const { spans } = getMergedSpansAndSpancodes(responseDatas);
+  const spans = getMergedSpans(responseDatas);
   const avgLatencyMs = safeDivide(
-    sum((s) => s.totalMs, ...toItems((s) => s.type === 'endpoint', spans)),
-    sum((s) => s.count, ...toItems((s) => s.type === 'endpoint', spans)),
+    sum((s) => s.totalMs, ...getItems(isEndpointSpan, spans)),
+    sum((s) => s.count, ...getItems(isEndpointSpan, spans)),
   );
 
   //middleware or endpoint spans
-  const errorRate = 0;
+  const totalErrors = sum((s) => s.errors.count, ...getItems(isEndpointSpan, spans));
 
   //total reqs
-  const totalRequests = sum((s) => s.count, ...toItems((s) => s.type === 'endpoint', spans));
+  const totalRequests = sum((s) => s.count, ...getItems(isEndpointSpan, spans));
 
   return {
     avgLatencyMs,
-    errorRate,
+    errorRate: safeDivide(totalErrors, totalRequests, { toPercent: true }),
     totalRequests,
   };
 }
@@ -282,60 +235,61 @@ function makeESpanTableData<T>(
 }
 
 function getTotalLatency(responseDatas: ResponseData[]) {
-  const { spans } = getMergedSpansAndSpancodes(responseDatas);
-  return sum((s) => s.totalMs, ...toItems((s) => s.type === 'endpoint', spans));
+  const spans = getMergedSpans(responseDatas);
+  return sum((s) => s.totalMs, ...getItems(isEndpointSpan, spans));
 }
 
 function getTotalRequests(responseDatas: ResponseData[]) {
-  const { spans } = getMergedSpansAndSpancodes(responseDatas);
-  return sum((s) => s.count, ...toItems((s) => s.type === 'endpoint', spans));
+  const spans = getMergedSpans(responseDatas);
+  return sum((s) => s.count, ...getItems(isEndpointSpan, spans));
 }
 
-interface CurPrevArgs {
+interface ResDataInfo<T> {
   spans: Record<string, Span>;
   totalLatency: number;
   totalRequests: number;
 }
 export function genSpanTableData<T>({
-  span,
-  expandSpanTypes,
-  cur,
-  prev,
-  createExtra,
+  spanKey,
+  globalArgs,
 }: {
-  span: Span;
-  expandSpanTypes: SpanType[];
-  cur: CurPrevArgs;
-  prev: null | CurPrevArgs;
-  createExtra: () => T;
+  spanKey: string;
+  globalArgs: {
+    expandSpanTypes: SpanType[];
+    createExtra: () => T;
+    cur: ResDataInfo<T>;
+    prev: null | ResDataInfo<T>;
+  };
 }): ESpanTableData<T>[] {
   const children: ESpanTableData<T>[] = [];
-  const { spans, totalLatency, totalRequests } = cur;
+  const { spans } = globalArgs.cur;
+  const span = spans[spanKey];
+
   for (const subSpanId of span.spans) {
     const subSpan = spans[subSpanId];
-    children.push(...genSpanTableData({ span: subSpan, cur, expandSpanTypes, prev, createExtra }));
+    children.push(...genSpanTableData({ spanKey: subSpanId, globalArgs }));
   }
 
-  if (expandSpanTypes.includes(span.type)) {
+  if (globalArgs.expandSpanTypes.includes(span.type)) {
     return children;
   }
 
   const totalLatencyContributionMs = makeChange(
     span.totalMs,
-    prev?.spans[span.spanCodeId]?.totalMs,
+    globalArgs.prev?.spans[spanKey]?.totalMs,
   );
-  const totalCount = makeChange(span.count, prev?.spans[span.spanCodeId]?.count);
+  const totalCount = makeChange(span.count, globalArgs.prev?.spans[spanKey]?.count);
   const avgLatencyContributionMs = makeChange(
     safeDivide(totalLatencyContributionMs.cur, totalCount.cur),
-    prev ? safeDivide(totalLatencyContributionMs.prev, totalCount.prev) : null,
+    globalArgs.prev ? safeDivide(totalLatencyContributionMs.prev, totalCount.prev) : null,
   );
   const totalErrorCount = makeChange(0, 0);
-  const snippet = span.type;
+  const snippet = span.snippet;
   const errors = null;
 
   return [
     makeESpanTableData({
-      extra: createExtra(),
+      extra: globalArgs.createExtra(),
       span,
       totalLatencyContributionMs,
       avgLatencyContributionMs,
@@ -408,14 +362,8 @@ export const extr = {
     return kpisWithChanges;
   },
 
-  getSpanError(span: Span, responseDatas: ResponseData[]) {
-    const { spans, spanCodes } = getMergedSpansAndSpancodes(responseDatas);
+  getSpanError(_span: Span, _responseDatas: ResponseData[]) {
     return '';
-  },
-
-  getSourceIfLocal(span: Span, responseDatas: ResponseData[]): SpanCode['snippet'] {
-    const { spans, spanCodes } = getMergedSpansAndSpancodes(responseDatas);
-    return spanCodes[span.spanCodeId].snippet;
   },
 
   getSpanTableData<T>(
@@ -424,7 +372,7 @@ export const extr = {
     createExtra: () => T,
     prevResponseDatas?: ResponseData[],
   ): ESpanTableData<T>[] {
-    const { spans: curSpans } = getMergedSpansAndSpancodes(responseDatas);
+    const curSpans = getMergedSpans(responseDatas);
 
     const cur = {
       spans: curSpans,
@@ -434,24 +382,21 @@ export const extr = {
 
     const prev = prevResponseDatas
       ? {
-          spans: getMergedSpansAndSpancodes(prevResponseDatas).spans,
+          spans: getMergedSpans(prevResponseDatas),
           totalLatency: getTotalLatency(prevResponseDatas),
           totalRequests: getTotalRequests(prevResponseDatas),
         }
       : null;
 
     return genSpanTableData({
-      span: curSpans['root'],
-      expandSpanTypes,
-      cur,
-      prev,
-      createExtra,
+      spanKey: rootSpanKey,
+      globalArgs: { expandSpanTypes, createExtra, cur, prev },
     });
   },
 
   getMaxSpanLatencyMs(responseDatas: ResponseData[]) {
     let max = 0;
-    const { spans } = getMergedSpansAndSpancodes(responseDatas);
+    const spans = getMergedSpans(responseDatas);
     for (const span of Object.values(spans)) {
       max = Math.max(max, span.totalMs);
     }

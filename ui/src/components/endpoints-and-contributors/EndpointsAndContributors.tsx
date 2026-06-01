@@ -276,7 +276,7 @@ export function EndpointsAndContributors({ chart }: { chart: ChartData }) {
             <Bar dataKey="current_unaccounted" stackId="current" fill="#d1d5db"
               shape={<CustomBarShape />} isAnimationActive={false}>
               <LabelList dataKey="current_totalAvgMs" position="right"
-                formatter={(v: number) => v > 0 ? `${v.toFixed(0)}ms` : ''}
+                formatter={(v: any) => v > 0 ? `${v.toFixed(0)}ms` : ''}
                 style={{ fontSize: 10, fill: '#6b7280', fontWeight: 600 }} />
             </Bar>
           </BarChart>

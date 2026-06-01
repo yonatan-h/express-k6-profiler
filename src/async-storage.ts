@@ -1,14 +1,14 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { Span, SpanCode, SpanType } from '../shared/types';
-import { makeSpan, makeSpanCode, mergeSpan, mergeSpanCodes } from '../shared/big-utils';
+import { makeSpan, mergeSpan } from '../shared/big-utils';
+import { MiddlewareSpan, rootSpanKey, RouteSpan, Span, SpanType } from '../shared/types';
 import { addError } from './measurement';
+import { log } from './utils';
 
 export interface SpanStore {
+  returnedSpanKey: string | null;
   spans: Record<string, Span>;
-  spanCodes: Record<string, SpanCode>;
   stack: {
     span: Span;
-    spanCode: SpanCode;
     startMs: number;
   }[];
 }
@@ -24,22 +24,31 @@ function getStore(): SpanStore {
   return s;
 }
 
+function genSpanKey(stack: SpanStore['stack'], span: Span): string {
+  return span.type === 'root'
+    ? rootSpanKey
+    : `${stack.map((s) => s.span.type + ':' + s.span.snippet).join(':')}:${span.snippet}`;
+}
+
+function printStack(stack: SpanStore['stack']) {
+  log(stack.map((s) => s.span.snippet).join('>'));
+  log('------------');
+}
+
 //most info is filled out
 export function markStart(
-  type: SpanType,
-  partialSpan: Partial<Span>,
-  partialSpanCode: Partial<SpanCode>,
-  { expectSpanContext, isUserLevel }: { expectSpanContext?: boolean; isUserLevel?: boolean } = {
-    expectSpanContext: false,
-    isUserLevel: true,
-  },
+  partialSpan: Partial<Span> & { type: SpanType },
+  {
+    expectSpanContext = false,
+    isUserLevel = true,
+  }: { expectSpanContext?: boolean; isUserLevel?: boolean } = {},
 ): number {
   if (!isUserLevel) return -1;
   try {
     const s = getStore();
-    const span = makeSpan({ ...partialSpan, type });
-    const spanCode = makeSpanCode({ ...partialSpanCode, type });
-    s.stack.push({ span, spanCode, startMs: Date.now() });
+    printStack(s.stack);
+    const span = makeSpan({ ...partialSpan });
+    s.stack.push({ span, startMs: Date.now() });
     return s.stack.length - 1;
   } catch (e) {
     const skip = (e as Error)?.message === NO_SPAN_CONTEXT && !expectSpanContext;
@@ -53,52 +62,51 @@ export function markStart(
 export function markEnd(
   index: number,
   partialSpan: Partial<Span>,
-  partialSpanCode: Partial<SpanCode>,
-  { expectSpanContext, forceCollapse }: { expectSpanContext?: boolean; forceCollapse?: boolean } = {
-    expectSpanContext: false,
-    forceCollapse: false,
-  },
+  {
+    expectSpanContext = false,
+    forceCollapse = false,
+    hasReturned = false,
+  }: { expectSpanContext?: boolean; forceCollapse?: boolean; hasReturned?: boolean } = {},
 ) {
   if (index === -1) {
     return;
   }
   try {
     const s = getStore();
+    printStack(s.stack);
     if (index >= s.stack.length) {
       return addError(
-        new Error(`Index ${index} too big for ${partialSpanCode?.snippet || '<unknown-span>'}`),
+        new Error(`Index ${index} too big for ${partialSpan?.snippet || '<unknown-span>'}`),
       );
     }
 
     if (!forceCollapse && index !== s.stack.length - 1) {
-      const { span, spanCode } = s.stack[index]!;
+      const { span } = s.stack[index]!;
       return addError(
         new Error(
-          `Index ${index} out of sync for ${spanCode.snippet} (${spanCode.type}). Storage Stack:\n${s.stack.map((s) => s.spanCode.type).join('\n')}`,
+          `Index ${index} out of sync for ${span.snippet} (${span.type}). Storage Stack:\n${s.stack.map((s) => s.span.type).join('\n')}`,
         ),
       );
     }
 
-    //incase of force collapsing
+    if (hasReturned) {
+      if (s.returnedSpanKey) {
+        addError(new Error(`Returned span key already set to ${s.returnedSpanKey}`));
+      } else {
+        s.returnedSpanKey = genSpanKey(s.stack.slice(0, index), s.stack[index].span);
+      }
+    }
+
+    //incase of force collapsing or normal collapsing
     while (s.stack.length > index) {
-      let { span, spanCode, startMs } = s.stack.pop()!;
+      let { span, startMs } = s.stack.pop()!;
 
       if (s.stack.length - 1 === index) {
         span = mergeSpan({ type: span.type, newSpan: partialSpan, existingSpan: span });
-        spanCode = mergeSpanCodes({
-          type: spanCode.type,
-          newSpanCode: partialSpanCode,
-          existingSpanCode: spanCode,
-        });
       }
 
-      const spanCodeId = `${spanCode.filePath || '<path>'}-${spanCode.snippet || '<snippet>'}-${spanCode.type}`;
-      const spanKey =
-        span.type === 'root'
-          ? 'root'
-          : `${s.stack.map((s) => s.span.type).join('-')}|${spanCodeId}`;
+      const spanKey = genSpanKey(s.stack, span);
 
-      span.spanCodeId = spanCodeId;
       span.totalMs = Date.now() - startMs;
       span.count = 1;
 
@@ -106,11 +114,6 @@ export function markEnd(
         type: span.type,
         newSpan: span,
         existingSpan: s.spans[spanKey],
-      });
-      s.spanCodes[spanCodeId] = mergeSpanCodes({
-        type: spanCode.type,
-        newSpanCode: spanCode,
-        existingSpanCode: s.spanCodes[spanCodeId],
       });
 
       if (s.stack.length > 0) {
@@ -126,14 +129,34 @@ export function markEnd(
   }
 }
 
-export function getStoredData(errorIfNotEnded = true): SpanStore | null {
+export function getStoredData(
+  errorIfNotEnded = true,
+): { spans: Record<string, Span>; returnedSpan: null | MiddlewareSpan | RouteSpan } | null {
   try {
     const s = getStore();
     if (errorIfNotEnded && s.stack.length) {
-      addError(new Error('Some spans were not ended'));
+      addError(new Error('Some spans were not ended' + JSON.stringify(s.stack)));
       return null;
     }
-    return s;
+
+    let returnedSpan: MiddlewareSpan | RouteSpan | null = null;
+    if (s.returnedSpanKey) {
+      const span = s.spans[s.returnedSpanKey];
+      if (!span) {
+        addError(
+          new Error(
+            `Returned span key ${s.returnedSpanKey} not found in spans ` + JSON.stringify(s.spans),
+          ),
+        );
+      } else if (span.type !== 'middleware' && span.type !== 'route') {
+        addError(new Error('Returned span type ' + span.type + ' is not middleware or route'));
+        return null;
+      } else {
+        returnedSpan = span;
+      }
+    }
+
+    return { ...s, returnedSpan };
   } catch (e) {
     addError(e as Error);
     return null;
@@ -141,5 +164,5 @@ export function getStoredData(errorIfNotEnded = true): SpanStore | null {
 }
 
 export function runWithStorageContext(fn: () => void) {
-  asyncStorage.run({ spans: {}, spanCodes: {}, stack: [] }, fn);
+  asyncStorage.run({ spans: {}, stack: [], returnedSpanKey: null }, fn);
 }

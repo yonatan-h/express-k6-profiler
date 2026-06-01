@@ -1,7 +1,8 @@
-import type { NextFunction, Request, Response, RequestHandler, Application, Router } from 'express';
-import { SpanType } from '../../shared/types';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { makeSpanError } from '../../shared/big-utils';
+import { Span, SpanType } from '../../shared/types';
 import { markEnd, markStart } from '../async-storage';
-import { getCodeInfo, isWrapped, log, skipWrapping, stampAsWrapped } from '../utils';
+import { isWrapped, skipWrapping, stampAsWrapped } from '../utils';
 
 type HandlerInfo = {
   spanType: SpanType;
@@ -10,10 +11,27 @@ type HandlerInfo = {
   subPath: string;
 };
 
-const onEnd = (markIndex: number, hasEnded: [boolean]) => {
+const onEnd = (markIndex: number, hasEnded: [boolean], error: any | null, hasReturned:boolean) => {
   if (hasEnded[0]) return;
   hasEnded[0] = true;
-  markEnd(markIndex, {}, {}, { expectSpanContext: true });
+
+  let errors: undefined | Span['errors'] = undefined;
+  if (error) {
+    errors = makeSpanError(error.message || String(error));
+  }
+
+  markEnd(markIndex, { errors }, { expectSpanContext: true, hasReturned });
+};
+
+const extractError = (res: Response, resArgs: any[]): Error | null => {
+  if (res.statusCode >= 400) {
+    const body = resArgs[0];
+    const bodyContent: string = JSON.stringify(body);
+    //TODO: handle if too big bodyContent? or if it's a stream or buffer or something else
+    let errorMessage = `${res.statusCode}-${res.statusMessage}: ${bodyContent ? ': ' + bodyContent : ''}`;
+    return new Error(errorMessage);
+  }
+  return null;
 };
 
 export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandler {
@@ -34,19 +52,19 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     const oldResJson = res.json.bind(res);
     //TODO: results in super nested .json methods
     res.json = (...args: any[]) => {
-      onEnd(markIndex, hasEnded);
+      onEnd(markIndex, hasEnded, extractError(res, args), true);
       return oldResJson(...args);
     };
 
     //TODO: results in super nested .send methods
     const oldResSend = res.send.bind(res);
     res.send = (...args: any[]) => {
-      onEnd(markIndex, hasEnded);
+      onEnd(markIndex, hasEnded, extractError(res, args), true);
       return oldResSend(...args);
     };
 
     const newNext = (...nextArgs: any[]) => {
-      onEnd(markIndex, hasEnded);
+      onEnd(markIndex, hasEnded, extractError(res, nextArgs), false);
       return next(...nextArgs);
     };
 
@@ -59,8 +77,20 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     } else {
       snippet = `${hInfo.spanType}-${hInfo.index + 1}`;
     }
-    markIndex = markStart(hInfo.spanType, {}, { snippet });
-    return (handler as any)(...args);
+    markIndex = markStart({ type: hInfo.spanType, snippet, path: hInfo.subPath }, {});
+
+    try {
+      const answer = (handler as any)(...args);
+      if (answer && typeof answer.catch === 'function') {
+        answer.catch((error: any) => {
+          onEnd(markIndex, hasEnded, error, true);
+        });
+      }
+      return answer;
+    } catch (error) {
+      onEnd(markIndex, hasEnded, error, true);
+      throw error;
+    }
   };
 
   return newHandler;

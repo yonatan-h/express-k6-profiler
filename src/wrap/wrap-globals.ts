@@ -1,6 +1,6 @@
-import { SpanCode } from '../../shared/types';
+import { makeSpanError } from '../../shared/big-utils';
 import { markEnd, markStart } from '../async-storage';
-import { getCodeInfo, log } from '../utils';
+import { getCodeInfo } from '../utils';
 
 export function wrapGlobals() {
   //---console.log---
@@ -11,12 +11,15 @@ export function wrapGlobals() {
       methodName: 'console.log',
       args,
     });
-    let spanIndex = markStart('console-log', {}, { snippet, filePath, line }, { isUserLevel });
-    const res = oldLog(...args);
-
-    //TODO: manually pass end time for more accuracy
-    markEnd(spanIndex, {}, {});
-    return res;
+    let spanIndex = markStart({ type: 'console-log', snippet, filePath, line }, { isUserLevel });
+    try {
+      const res = oldLog(...args);
+      //TODO: manually pass end time for more accuracy
+      markEnd(spanIndex, {}, {});
+      return res;
+    } catch (e: any) {
+      markEnd(spanIndex, { errors: makeSpanError(e?.message || String(e)) }, {});
+    }
   };
 
   //--- promise-all---
@@ -27,11 +30,22 @@ export function wrapGlobals() {
       methodName: 'Promise.all',
       args: values,
     });
-    let spanIndex = markStart('promise-all', {}, { snippet, line, filePath }, { isUserLevel });
+    let spanIndex = markStart({ type: 'promise-all', snippet, line, filePath }, { isUserLevel });
     const res = oldPromiseAll(values);
+
+    let caughtError: any;
+    res.catch((e) => (caughtError = e));
+
     res.finally(() => {
       const snippet = `${callerName} → Promise.all(${values.length} args)`;
-      markEnd(spanIndex, {}, { snippet, line, filePath });
+      markEnd(spanIndex, {
+        snippet,
+        line,
+        filePath,
+        errors: caughtError
+          ? makeSpanError(caughtError?.message || String(caughtError))
+          : undefined,
+      });
     });
     return res;
   };
