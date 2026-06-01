@@ -4,7 +4,7 @@ export type SpanType =
   | 'middleware'
   | 'db'
   | 'route'
-  | 'end-point'
+  | 'endpoint'
   | 'promise-all'
   | 'root'
   | 'console-log';
@@ -23,7 +23,7 @@ export interface BaseSpan {
   errors: { count: number; samples: string[] };
 }
 
-export const rootSpanKey = '<root-key>';
+export const rootSpanKey = 'root-key';
 
 export interface RootSpan extends BaseSpan {
   type: 'root';
@@ -49,7 +49,7 @@ export interface RouteSpan extends BaseSpan {
 }
 
 export interface EndpointSpan extends BaseSpan {
-  type: 'end-point';
+  type: 'endpoint';
   method: Method;
   path: string;
 }

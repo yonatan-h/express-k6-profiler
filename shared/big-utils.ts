@@ -42,8 +42,8 @@ export function makeSpan(partial: Partial<Span> & { type: SpanType }): Span {
       return { ...base, type: 'root' };
     case 'console-log':
       return { ...base, type: 'console-log' };
-    case 'end-point':
-      return { method: 'get', path: '', ...base, type: 'end-point' };
+    case 'endpoint':
+      return { method: 'get', path: '', ...base, type: 'endpoint' };
     default:
       throw new Error(`Invalid span type ${(partial as any).type}`);
   }
@@ -194,7 +194,7 @@ function getMergedSpans(responseDatas: ResponseData[]) {
   return spans;
 }
 
-const isEndpointSpan = (s: Span) => s.type === 'end-point';
+const isEndpointSpan = (s: Span) => s.type === 'endpoint';
 function getKpis(responseDatas: ResponseData[]) {
   const spans = getMergedSpans(responseDatas);
   const avgLatencyMs = safeDivide(
@@ -264,6 +264,10 @@ export function genSpanTableData<T>({
   const children: ESpanTableData<T>[] = [];
   const { spans } = globalArgs.cur;
   const span = spans[spanKey];
+  if (!span) {
+    console.error(`Span with key ${spanKey} not found in spans`);
+    return [];
+  }
 
   for (const subSpanId of span.spans) {
     const subSpan = spans[subSpanId];
@@ -297,6 +301,7 @@ export function genSpanTableData<T>({
       snippet,
       errors,
       totalErrorCount,
+      nested: children,
     }),
   ];
 }
@@ -373,6 +378,9 @@ export const extr = {
     prevResponseDatas?: ResponseData[],
   ): ESpanTableData<T>[] {
     const curSpans = getMergedSpans(responseDatas);
+    if (!curSpans[rootSpanKey]) {
+      return [];
+    }
 
     const cur = {
       spans: curSpans,

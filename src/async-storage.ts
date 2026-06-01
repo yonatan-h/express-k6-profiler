@@ -27,10 +27,11 @@ function getStore(): SpanStore {
 function genSpanKey(stack: SpanStore['stack'], span: Span): string {
   return span.type === 'root'
     ? rootSpanKey
-    : `${stack.map((s) => s.span.type + ':' + s.span.snippet).join(':')}:${span.snippet}`;
+    : `${stack.map((s) =>  s.span.snippet).join(':')}:${span.snippet}`;
 }
 
 function printStack(stack: SpanStore['stack']) {
+  return;
   log(stack.map((s) => s.span.snippet).join('>'));
   log('------------');
 }
@@ -101,7 +102,7 @@ export function markEnd(
     while (s.stack.length > index) {
       let { span, startMs } = s.stack.pop()!;
 
-      if (s.stack.length - 1 === index) {
+      if (s.stack.length === index) {
         span = mergeSpan({ type: span.type, newSpan: partialSpan, existingSpan: span });
       }
 

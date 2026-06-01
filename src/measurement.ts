@@ -80,7 +80,7 @@ export function saveEntries({
 }) {
   let endpointKey: string | null = null;
   for (const [key, span] of Object.entries(spans)) {
-    if (span.type === 'end-point') endpointKey = key;
+    if (span.type === 'endpoint') endpointKey = key;
   }
 
   if (!endpointKey) {
@@ -97,6 +97,7 @@ export function saveEntries({
   }
 
   const endpoint = spans[endpointKey] as EndpointSpan;
+  //TODO: path appears to be '' always
   spans[endpointKey] = makeSpan({ ...endpoint, errors, path });
 
   mergeTrees({
@@ -124,13 +125,16 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
   );
 
   runWithStorageContext(() => {
-    const rootIndex = markStart({ type: 'root', snippet: '<root>' }, {});
-    const endpointIndex = markStart({ type: 'end-point' }, {});
+    const rootIndex = markStart({ type: 'root', snippet: 'root' }, {});
+    const endpointIndex = markStart({ type: 'endpoint' }, {});
     next();
     res.on('finish', () => {
       measurements.status.current.liveRequests--;
 
-      markEnd(endpointIndex, {}, { expectSpanContext: true, forceCollapse: true });
+      const routePath = req.route?.path ? req.baseUrl + req.route.path : '<unmatched>';
+      const endpointSnippet = `${req.method} ${routePath}`;
+
+      markEnd(endpointIndex, { snippet: endpointSnippet }, { expectSpanContext: true, forceCollapse: true });
       markEnd(rootIndex, {}, { expectSpanContext: true });
 
       const data = getStoredData();
