@@ -72,6 +72,11 @@ export function mergeSpan({
   existing.line = newSpan.line ?? existing.line;
   existing.col = newSpan.col ?? existing.col;
 
+  if (newSpan.errors) {
+    existing.errors.count += newSpan.errors.count;
+    existing.errors.samples = [...existing.errors.samples, ...newSpan.errors.samples].slice(0, 10);
+  }
+
   const mergedSubSpans = new Set<string>();
   existing.spans.forEach((s) => mergedSubSpans.add(s));
   if (newSpan.spans) {
@@ -249,13 +254,112 @@ interface ResDataInfo<T> {
   totalLatency: number;
   totalRequests: number;
 }
+
+function getChildrenAfterSkip(
+  spanKey: string,
+  spans: Record<string, Span>,
+  skipSpanTypes: SpanType[],
+): string[] {
+  const s = spans[spanKey];
+  if (!s) {
+    console.error(`Span with key ${spanKey} not found in spans during tree shortening`);
+    return [];
+  }
+  const children: string[] = [];
+
+  for (const id of s.spans) {
+    const child = spans[id];
+    if (!child) {
+      console.error(`Child span with key ${id} not found in spans during tree shortening`);
+      return [];
+    }
+    if (skipSpanTypes.includes(child.type)) {
+      children.push(...getChildrenAfterSkip(id, spans, skipSpanTypes));
+    } else {
+      children.push(id);
+    }
+  }
+
+  return children;
+}
+
+function mergeChildTwins(
+  key: string,
+  result: Record<string, Span>,
+  spans: Record<string, Span>,
+  skipSpanTypes: SpanType[],
+) {
+  if (!result[key]) {
+    console.error(`Span with key ${key} not found in result during tree shortening`);
+    return;
+  }
+
+  const grouped: Record<string, string[]> = {};
+  for (const childKey of result[key].spans) {
+    const child = spans[childKey];
+    if (!child) {
+      console.error(`Child span with key ${childKey} not found in spans during tree shortening`);
+      continue;
+    }
+    const groupKey = `${child.type}:${child.snippet}:${child.code}`;
+    grouped[groupKey] = grouped[groupKey] || [];
+    grouped[groupKey].push(childKey);
+  }
+
+  //process cur layer
+  result[key].spans = [];
+  for (const siblingKeys of Object.values(grouped)) {
+    siblingKeys.sort();
+    const primaryKey = siblingKeys[0];
+    result[key].spans.push(primaryKey);
+
+    if (!result[primaryKey]) {
+      result[primaryKey] = makeSpan(spans[primaryKey]);
+    }
+
+    // Merge duplicate siblings into the primary sibling
+    for (let i = 1; i < siblingKeys.length; i++) {
+      const siblingKey = siblingKeys[i];
+      const sibling = makeSpan({
+        ...spans[siblingKey],
+        spans: getChildrenAfterSkip(siblingKey, spans, skipSpanTypes),
+      });
+      if (!sibling) {
+        console.error(
+          `Sibling span with key ${siblingKey} not found in spans during tree shortening`,
+        );
+        continue;
+      }
+      result[primaryKey] = mergeSpan({
+        type: result[primaryKey].type,
+        newSpan: sibling,
+        existingSpan: result[primaryKey],
+      });
+    }
+  }
+  //process below layers
+  for (const childkey of result[key].spans) {
+    mergeChildTwins(childkey, result, spans, skipSpanTypes);
+  }
+}
+
+function shortenTree(spans: Record<string, Span>, skipTypes: SpanType[]): Record<string, Span> {
+  const result: Record<string, Span> = {};
+  const rootResSpan = makeSpan({
+    ...spans[rootSpanKey],
+    spans: getChildrenAfterSkip(rootSpanKey, spans, skipTypes),
+  });
+  result[rootSpanKey] = rootResSpan;
+  mergeChildTwins(rootSpanKey, result, spans, skipTypes);
+  // return result;
+  return spans;
+}
 export function genSpanTableData<T>({
   spanKey,
   globalArgs,
 }: {
   spanKey: string;
   globalArgs: {
-    expandSpanTypes: SpanType[];
     createExtra: () => T;
     cur: ResDataInfo<T>;
     prev: null | ResDataInfo<T>;
@@ -270,12 +374,7 @@ export function genSpanTableData<T>({
   }
 
   for (const subSpanId of span.spans) {
-    const subSpan = spans[subSpanId];
     children.push(...genSpanTableData({ spanKey: subSpanId, globalArgs }));
-  }
-
-  if (globalArgs.expandSpanTypes.includes(span.type)) {
-    return children;
   }
 
   const totalLatencyContributionMs = makeChange(
@@ -373,7 +472,7 @@ export const extr = {
 
   getSpanTableData<T>(
     responseDatas: ResponseData[],
-    expandSpanTypes: SpanType[],
+    skipSpanTypes: SpanType[],
     createExtra: () => T,
     prevResponseDatas?: ResponseData[],
   ): ESpanTableData<T>[] {
@@ -383,23 +482,24 @@ export const extr = {
     }
 
     const cur = {
-      spans: curSpans,
+      spans: shortenTree(curSpans, skipSpanTypes),
       totalLatency: getTotalLatency(responseDatas),
       totalRequests: getTotalRequests(responseDatas),
     };
 
     const prev = prevResponseDatas
       ? {
-          spans: getMergedSpans(prevResponseDatas),
+          spans: shortenTree(getMergedSpans(prevResponseDatas), skipSpanTypes),
           totalLatency: getTotalLatency(prevResponseDatas),
           totalRequests: getTotalRequests(prevResponseDatas),
         }
       : null;
 
-    return genSpanTableData({
+    const spanTableData = genSpanTableData({
       spanKey: rootSpanKey,
-      globalArgs: { expandSpanTypes, createExtra, cur, prev },
+      globalArgs: { createExtra, cur, prev },
     });
+    return spanTableData;
   },
 
   getMaxSpanLatencyMs(responseDatas: ResponseData[]) {

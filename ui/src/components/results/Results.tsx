@@ -12,7 +12,7 @@ export default function Results() {
   const prevResponseDatas = c.baseRecord
     ? Object.values(c.baseRecord.responseDatas || {})
     : undefined;
-  const data = extr.getSpanTableData(curResponseDatas, [], () => ({}), prevResponseDatas);
+  const data = extr.getSpanTableData(curResponseDatas, ['root', 'endpoint'], () => ({}), prevResponseDatas);
 
   const maxMs = extr.getMaxSpanLatencyMs(Object.values(c.curRecord?.responseDatas || {}));
   const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);

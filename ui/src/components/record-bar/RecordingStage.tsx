@@ -1,10 +1,7 @@
-import { useState, useEffect } from 'react';
-import { extr, getDuration, makeRecording, safeDivide } from '../../../../shared/big-utils';
 import { FaCircle, FaStop } from 'react-icons/fa';
+import { extr, makeRecording, safeDivide } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
-import type { Recording } from '../../../../shared/types';
 import type { RecordingExtra } from '../../ui-types';
-import Progress from './Progress';
 
 const pad = (liveReqs: number[], maxLiveReqs: number): number[] => {
   const totalArr = [...Array.from({ length: maxLiveReqs }, () => 0), ...liveReqs];
@@ -13,7 +10,8 @@ const pad = (liveReqs: number[], maxLiveReqs: number): number[] => {
 export function RecordingStage() {
   const c = useGContext();
   const recording =
-    c.getLastRecord() || makeRecording<RecordingExtra>({ extra: { liveRequests: [0], userHasSaved:false } });
+    c.getLastRecord() ||
+    makeRecording<RecordingExtra>({ extra: { liveRequests: [0], userHasSaved: false } });
   const recordingInfo = extr.getRecordingInfo(recording);
 
   const barWidthPx = 4;
