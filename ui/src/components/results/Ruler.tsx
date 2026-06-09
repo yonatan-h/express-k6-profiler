@@ -18,9 +18,8 @@ export default function Ruler({
     return i % 2 === 0;
   };
 
-  //TODO: make not selectable
   return (
-    <div className="relative h-5  " style={{ width: maxWidthPx + 'px' }}>
+    <div className="relative h-5  select-none " style={{ width: maxWidthPx + 'px' }}>
       {labels.map((label, i) => (
         <div
           key={i}

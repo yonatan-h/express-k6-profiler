@@ -129,6 +129,7 @@ export interface ESpanTableData<T> {
   totalErrorCount: Change;
   errors: null;
   nested: ESpanTableData<T>[];
+  depth:number;
 }
 
 export interface Recording<T> {

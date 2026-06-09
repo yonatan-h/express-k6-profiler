@@ -127,38 +127,6 @@ function SuggestionBox({ isOpen }: { isOpen: boolean }) {
   );
 }
 
-function FolderBar({
-  change,
-  maxMs,
-  maxWidthPx,
-}: {
-  change: Change;
-  maxMs: number;
-  maxWidthPx: number;
-}) {
-  const curWidthPx = safeDivide(change.cur, maxMs) * maxWidthPx;
-  const prevWidthPx = safeDivide(change.prev || 0, maxMs) * maxWidthPx;
-  const better = true;
-  return (
-    <div className="flex items-center w-full h-4 relative">
-      <div
-        className={`border border-gray-800 absolute h-full rounded-r bg-gray-200 ${
-          better ? 'z-20' : ''
-        }`}
-        style={{ width: curWidthPx }}
-      ></div>
-
-      {change.hasPrev && (
-        <div
-          className={`border border-dashed border-gray-900 rounded-r absolute h-full
-
-          ${better ? '' : 'z-20'}`}
-          style={{ width: prevWidthPx }}
-        ></div>
-      )}
-    </div>
-  );
-}
 
 function Details({
   snippet,

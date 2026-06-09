@@ -230,6 +230,7 @@ function makeESpanTableData<T>(
     totalLatencyContributionMs: makeChange(0, null),
     totalCount: makeChange(0, null),
     totalErrorCount: makeChange(0, null),
+    depth: 0,
     errors: null,
     nested,
     snippet: '<snippet>',
@@ -352,15 +353,27 @@ function shortenTree(spans: Record<string, Span>, skipTypes: SpanType[]): Record
   result[rootSpanKey] = rootResSpan;
   mergeChildTwins(rootSpanKey, result, spans, skipTypes);
   // return result;
-  return spans;
+  return result;
 }
-export function genSpanTableData<T>({
+
+function getFlatSpanTableData<T>(data: ESpanTableData<T>[]): ESpanTableData<T>[] {
+  const flat: ESpanTableData<T>[] = [];
+  for (const item of data) {
+    flat.push(item);
+    flat.push(...getFlatSpanTableData(item.nested));
+  }
+  return flat;
+}
+
+function genSpanTableData<T>({
   spanKey,
+  depth = 0,
   globalArgs,
 }: {
   spanKey: string;
+  depth?: number;
   globalArgs: {
-    createExtra: () => T;
+    createExtra: (depth: number, span: Span) => T;
     cur: ResDataInfo<T>;
     prev: null | ResDataInfo<T>;
   };
@@ -374,7 +387,7 @@ export function genSpanTableData<T>({
   }
 
   for (const subSpanId of span.spans) {
-    children.push(...genSpanTableData({ spanKey: subSpanId, globalArgs }));
+    children.push(...genSpanTableData({ spanKey: subSpanId, depth: depth + 1, globalArgs }));
   }
 
   const totalLatencyContributionMs = makeChange(
@@ -392,7 +405,8 @@ export function genSpanTableData<T>({
 
   return [
     makeESpanTableData({
-      extra: globalArgs.createExtra(),
+      extra: globalArgs.createExtra(depth, span),
+      depth,
       span,
       totalLatencyContributionMs,
       avgLatencyContributionMs,
@@ -473,12 +487,13 @@ export const extr = {
   getSpanTableData<T>(
     responseDatas: ResponseData[],
     skipSpanTypes: SpanType[],
-    createExtra: () => T,
+    createExtra: (depth: number, span: Span) => T,
     prevResponseDatas?: ResponseData[],
-  ): ESpanTableData<T>[] {
+  ): { table: ESpanTableData<T>[]; maxAvgSpanLatencyMs: number; maxTotalSpanLatencyMs: number } {
     const curSpans = getMergedSpans(responseDatas);
     if (!curSpans[rootSpanKey]) {
-      return [];
+      console.error(`Root span with key ${rootSpanKey} not found in current spans`);
+      return { table: [], maxAvgSpanLatencyMs: 0, maxTotalSpanLatencyMs: 0 };
     }
 
     const cur = {
@@ -495,20 +510,35 @@ export const extr = {
         }
       : null;
 
+    const skipRoot = skipSpanTypes.includes('root');
     const spanTableData = genSpanTableData({
       spanKey: rootSpanKey,
+      depth: skipRoot ? -1 : 0,
       globalArgs: { createExtra, cur, prev },
     });
-    return spanTableData;
-  },
 
-  getMaxSpanLatencyMs(responseDatas: ResponseData[]) {
-    let max = 0;
-    const spans = getMergedSpans(responseDatas);
-    for (const span of Object.values(spans)) {
-      max = Math.max(max, span.totalMs);
+    let maxAvgSpanLatencyMs = 0;
+    let maxTotalSpanLatencyMs = 0;
+    const flatData = getFlatSpanTableData(spanTableData);
+    for (const item of flatData) {
+      maxAvgSpanLatencyMs = Math.max(
+        maxAvgSpanLatencyMs,
+        item.avgLatencyContributionMs.cur,
+        item.avgLatencyContributionMs.prev ?? 0,
+      );
+      maxTotalSpanLatencyMs = Math.max(
+        maxTotalSpanLatencyMs,
+        item.totalLatencyContributionMs.cur,
+        item.totalLatencyContributionMs.prev ?? 0,
+      );
     }
-    return max;
+
+    //children of root
+    return {
+      table: skipRoot ? (spanTableData[0]?.nested ?? []) : spanTableData,
+      maxAvgSpanLatencyMs,
+      maxTotalSpanLatencyMs,
+    };
   },
 
   getChangeType(

@@ -12,12 +12,12 @@ export default function Results() {
   const prevResponseDatas = c.baseRecord
     ? Object.values(c.baseRecord.responseDatas || {})
     : undefined;
-  const data = extr.getSpanTableData(curResponseDatas, ['root', 'endpoint'], () => ({}), prevResponseDatas);
+  const data = extr.getSpanTableData(curResponseDatas, [], () => ({}), prevResponseDatas);
 
-  const maxMs = extr.getMaxSpanLatencyMs(Object.values(c.curRecord?.responseDatas || {}));
+  const maxMs = data.maxAvgSpanLatencyMs;
   const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
 
-  const maxWidthPx = 300;
+  const maxWidthPx = 150;
 
   if (Object.values(c.responseDatas).length <= 0) {
     return <NoResultsYet />;
@@ -75,26 +75,21 @@ export default function Results() {
         <thead>
           <tr className="uppercase text-gray-500 text-left">
             <th className="px-4 py-2 font-normal border-y border-gray-200">Code</th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">Latency</th>
-            <th className="px-4 pt-2 font-normal border-y border-gray-200">
-              <Ruler
-                numDivisions={10}
-                max={maxMs}
-                maxWidthPx={maxWidthPx}
-              />
+            <th className=" pt-2 font-normal border-y border-gray-200">
+              <Ruler numDivisions={10} max={maxMs} maxWidthPx={maxWidthPx} />
             </th>
+            <th className="px-4 py-2 font-normal border-y border-gray-200">Latency</th>
             <th className="px-4 py-2 font-normal border-y border-gray-200">Count</th>
             <th className="px-4 py-2 font-normal border-y border-gray-200">Errors</th>
           </tr>
         </thead>
         <tbody className="group">
-          {data.map((folder, i) => {
+          {data.table.map((folder, i) => {
             return (
               <Folder
                 key={`${folder.span.filePath || ''}-${folder.span.snippet}-${i}`}
                 data={folder}
                 maxMs={maxMs}
-                depth={0}
                 maxWidthPx={maxWidthPx}
               />
             );
