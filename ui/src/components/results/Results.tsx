@@ -12,9 +12,8 @@ export default function Results() {
   const prevResponseDatas = c.baseRecord
     ? Object.values(c.baseRecord.responseDatas || {})
     : undefined;
-  const data = extr.getSpanTableData(curResponseDatas, [], () => ({}), prevResponseDatas);
 
-  const maxMs = data.maxAvgSpanLatencyMs;
+  const maxMs = c.tableData?.maxAvgSpanLatencyMs || 0;
   const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
 
   const maxWidthPx = 150;
@@ -84,16 +83,14 @@ export default function Results() {
           </tr>
         </thead>
         <tbody className="group">
-          {data.table.map((folder, i) => {
-            return (
-              <Folder
-                key={`${folder.span.filePath || ''}-${folder.span.snippet}-${i}`}
-                data={folder}
-                maxMs={maxMs}
-                maxWidthPx={maxWidthPx}
-              />
-            );
-          })}
+          {(c.tableData?.table || []).map((folder, i) => (
+            <Folder
+              key={`${folder.span.filePath || ''}-${folder.span.snippet}-${i}`}
+              data={folder}
+              maxMs={maxMs}
+              maxWidthPx={maxWidthPx}
+            />
+          ))}
         </tbody>
       </table>
     </div>

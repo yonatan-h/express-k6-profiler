@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
-import { TbAlertTriangle } from 'react-icons/tb';
 import { ToastContainer } from 'react-toastify';
-import { safeDivide } from '../../shared/big-utils';
-import type { Change, SpanType } from '../../shared/types';
+import { Details } from './components/details/Details';
 import { TopSummary } from './components/record-bar/RecordBar';
-import FolderIcon from './components/results/FolderIcon';
 import Results from './components/results/Results';
 import { StatusBar } from './components/status-bar/StatusBar';
 import { GlobalContextProvider } from './global-context';
@@ -22,14 +19,7 @@ export default function App() {
             <Results />
           </div>
 
-          {/* <Details
-            filePath={sampleDetails.filePath}
-            line={sampleDetails.line}
-            code={sampleDetails.code}
-            errors={sampleDetails.errors}
-            snippet={'auth'}
-            spanType={'middleware'}
-          /> */}
+          <Details />
         </div>
       </div>
     </GlobalContextProvider>
@@ -123,79 +113,6 @@ function SuggestionBox({ isOpen }: { isOpen: boolean }) {
           <button className="border border-gray-200 px-2 rounded">📁 route-handler.ts:23 </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-
-function Details({
-  snippet,
-  spanType,
-  code,
-  line,
-  filePath,
-  errors,
-}: {
-  snippet: string;
-  spanType: SpanType;
-  code?: string;
-  line?: number;
-  filePath?: string;
-  errors: Record<string, { count: number; message: string }>;
-}) {
-  const entries = Object.entries(errors);
-
-  return (
-    <div className="flex-1 min-h-0 overflow-y-auto border rounded border-gray-200 bg-white flex flex-col gap-3">
-      {/* header */}
-      <div className="flex items-center gap-2 sticky top-0 bg-white p-3 border-b border-gray-200 ">
-        <FolderIcon type={spanType} />
-        <h2 className="font-medium">{snippet}</h2>
-      </div>
-
-      {/* errors */}
-      {entries.length > 0 && (
-        <div className="px-3">
-          <div className="">Errors</div>
-
-          <div className="">
-            {entries.map(([code, err]) => (
-              <div key={code}>
-                <div className="flex items-center gap-2">
-                  <TbAlertTriangle className="text-red-700" />
-
-                  <span className="font-mono text-sm">{code}</span>
-                  <span className="text-xs text-gray-500">×{err.count}</span>
-                </div>
-
-                <div className="ml-6 text-sm text-gray-700">{err.message}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* source */}
-      {(filePath || code) && (
-        <div className="px-3">
-          <div className="">
-            <div className="">Source</div>
-
-            <div className="flex items-center justify-between gap-2">
-              <div className="font-mono text-sm">
-                {filePath}
-                {line && `:${line}`}
-              </div>
-            </div>
-          </div>
-
-          {code && (
-            <pre className="p-3 overflow-auto text-xs font-mono bg-gray-50">
-              <code>{code}</code>
-            </pre>
-          )}
-        </div>
-      )}
     </div>
   );
 }

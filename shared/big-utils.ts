@@ -226,6 +226,7 @@ function makeESpanTableData<T>(
   const nested = [] as ESpanTableData<T>[];
 
   const result: ESpanTableData<T> = {
+    spanKey: '',
     avgLatencyContributionMs: makeChange(0, null),
     totalLatencyContributionMs: makeChange(0, null),
     totalCount: makeChange(0, null),
@@ -405,6 +406,7 @@ function genSpanTableData<T>({
 
   return [
     makeESpanTableData({
+      spanKey,
       extra: globalArgs.createExtra(depth, span),
       depth,
       span,
@@ -428,6 +430,13 @@ export function makeRecording<T>(partial: Partial<Recording<T>> & { extra: T }):
     endTimeMs: 0,
     ...partial,
   };
+}
+
+export interface ReturnGetSpanTableData<T> {
+  table: ESpanTableData<T>[];
+  maxAvgSpanLatencyMs: number;
+  maxTotalSpanLatencyMs: number;
+  flatTable: ESpanTableData<T>[];
 }
 
 //directly used by react for humans and/or md generator for the agents
@@ -489,11 +498,11 @@ export const extr = {
     skipSpanTypes: SpanType[],
     createExtra: (depth: number, span: Span) => T,
     prevResponseDatas?: ResponseData[],
-  ): { table: ESpanTableData<T>[]; maxAvgSpanLatencyMs: number; maxTotalSpanLatencyMs: number } {
+  ): ReturnGetSpanTableData<T> {
     const curSpans = getMergedSpans(responseDatas);
     if (!curSpans[rootSpanKey]) {
       console.error(`Root span with key ${rootSpanKey} not found in current spans`);
-      return { table: [], maxAvgSpanLatencyMs: 0, maxTotalSpanLatencyMs: 0 };
+      return { table: [], flatTable: [], maxAvgSpanLatencyMs: 0, maxTotalSpanLatencyMs: 0 };
     }
 
     const cur = {
@@ -519,8 +528,8 @@ export const extr = {
 
     let maxAvgSpanLatencyMs = 0;
     let maxTotalSpanLatencyMs = 0;
-    const flatData = getFlatSpanTableData(spanTableData);
-    for (const item of flatData) {
+    const flatTable = getFlatSpanTableData(spanTableData);
+    for (const item of flatTable) {
       maxAvgSpanLatencyMs = Math.max(
         maxAvgSpanLatencyMs,
         item.avgLatencyContributionMs.cur,
@@ -538,6 +547,7 @@ export const extr = {
       table: skipRoot ? (spanTableData[0]?.nested ?? []) : spanTableData,
       maxAvgSpanLatencyMs,
       maxTotalSpanLatencyMs,
+      flatTable: flatTable,
     };
   },
 

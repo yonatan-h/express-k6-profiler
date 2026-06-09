@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { extr, makeRecording, safeDivide } from '../../shared/big-utils';
-import { type Recording, type ResponseData } from '../../shared/types';
-import { get, K_BASE_I, K_CUR_I, K_RECORDS, K_RES, set } from './storage';
-import type { RecordingExtra, StageType } from './ui-types';
+import {
+  extr,
+  makeRecording,
+  safeDivide,
+  type ReturnGetSpanTableData,
+} from '../../shared/big-utils';
+import { type ESpanTableData, type Recording, type ResponseData } from '../../shared/types';
+import { get, K_BASE_I, K_CUR_I, K_RECORDS, K_RES, K_SELECTED_TD, set } from './storage';
+import type { ESpanTableDataExtra, RecordingExtra, StageType } from './ui-types';
 
 //context
 interface GlobalContextValue {
@@ -20,6 +25,9 @@ interface GlobalContextValue {
   curRecord: null | Recording<RecordingExtra>;
   setBaseRecord: (id: string) => void;
   setCurRecord: (id: string) => void;
+  tableData: null | ReturnGetSpanTableData<ESpanTableDataExtra>;
+  selectedTableData: ESpanTableData<ESpanTableDataExtra> | null;
+  selectTableData: (spanKey: string | null) => void;
 }
 
 const defaultGlobalContext: GlobalContextValue = {
@@ -37,8 +45,10 @@ const defaultGlobalContext: GlobalContextValue = {
   curRecord: null,
   setBaseRecord: () => {},
   setCurRecord: () => {},
+  tableData: null,
+  selectedTableData: null,
+  selectTableData: () => {},
 };
-
 const GlobalContext = React.createContext<GlobalContextValue>(defaultGlobalContext);
 
 //provider
@@ -59,6 +69,9 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
 
   const [curIndex, setCurIndex] = useState<number>(get(K_CUR_I, -1));
   useEffect(() => set(K_CUR_I, curIndex), [curIndex]);
+
+  const [selectedTDKey, setSelectedTDKey] = useState<string | null>(get(K_SELECTED_TD, null));
+  useEffect(() => set(K_SELECTED_TD, selectedTDKey), [selectedTDKey]);
   //---
 
   const [loading, setLoading] = useState(false);
@@ -67,6 +80,26 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
 
   const recordings = records;
   const responseDatas = Object.values(resDatasMap);
+
+  const baseRecord = recordings[baseIndex] || null;
+  const curRecord = recordings[curIndex] || null;
+
+  const tableData = curRecord
+    ? extr.getSpanTableData(
+        Object.values(curRecord.responseDatas),
+        [],
+        () => ({}),
+        baseRecord.responseDatas ? Object.values(baseRecord.responseDatas) : [],
+      )
+    : null;
+  const selectedTableData = tableData?.flatTable.find((td) => td.spanKey === selectedTDKey) || null;
+  const selectTableData = (spanKey: string | null) => {
+    if (spanKey && tableData && !tableData.flatTable.find((td) => td.spanKey === spanKey)) {
+      console.error('could not set selected TD span key. not found. skipping');
+      return;
+    }
+    setSelectedTDKey(null);
+  };
 
   const getLast = (recordings: Recording<RecordingExtra>[]) => {
     const lastRecord: Recording<RecordingExtra> | undefined = recordings?.[recordings.length - 1];
@@ -210,10 +243,13 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   return (
     <GlobalContext.Provider
       value={{
-        baseRecord: recordings[baseIndex] || null,
+        curRecord,
+        selectedTableData,
+        selectTableData,
+        baseRecord,
+        tableData,
         setBaseRecord: (id: string) => setBaseIndex(records.findIndex((r) => r.id === id)),
         setCurRecord: (id: string) => setCurIndex(records.findIndex((r) => r.id === id)),
-        curRecord: recordings[curIndex] || null,
         getLastRecord: () => getLast(recordings),
         startRecording,
         stopRecording,

@@ -121,6 +121,7 @@ export type Change =
 //--extracted data types --//
 export interface ESpanTableData<T> {
   extra: T;
+  spanKey:string;
   span: Span;
   snippet: string;
   avgLatencyContributionMs: Change;
