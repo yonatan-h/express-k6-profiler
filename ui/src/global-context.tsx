@@ -87,7 +87,6 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   const tableData = curRecord
     ? extr.getSpanTableData(
         Object.values(curRecord.responseDatas),
-        [],
         () => ({}),
         baseRecord.responseDatas ? Object.values(baseRecord.responseDatas) : [],
       )
@@ -98,7 +97,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
       console.error('could not set selected TD span key. not found. skipping');
       return;
     }
-    setSelectedTDKey(null);
+    setSelectedTDKey(spanKey);
   };
 
   const getLast = (recordings: Recording<RecordingExtra>[]) => {

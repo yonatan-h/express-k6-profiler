@@ -15,8 +15,7 @@ export default function App() {
         <TopSummary />
 
         <div className="flex-1 flex gap-3 min-h-0">
-          <div className="flex-1 flex flex-col gap-3 min-h-0">
-            <Results />
+          <div className="flex-1 flex flex-col gap-3 min-h-0"> <Results />
           </div>
 
           <Details />
@@ -56,90 +55,7 @@ function BaseLine() {
   );
 }
 
-function Suggestions() {
-  const [isOpen, setIsOpen] = useState(true);
-  return (
-    <div className={`bg-white rounded p-3 ${isOpen ? `w-[300px]` : ``} border border-gray-200`}>
-      <div className={`flex items-center pb-3 ${isOpen ? `justify-between` : 'justify-center'}`}>
-        {isOpen && (
-          <h2 className={`flex justify-center items-center `}>
-            <span>Suggestions</span>
-            <span className="bg-gray-100 px-2 rounded mx-3">5</span>
-          </h2>
-        )}
-        <button
-          className="bg-gray-700 text-white text-xs px-3 py-1 rounded"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {isOpen ? '◀' : '▶'}
-        </button>
-      </div>
-      <div className="flex flex-col gap-5">
-        {[1, 1, 1, 1, 1].map((_, i) => {
-          return (
-            <React.Fragment key={i}>
-              {<hr className="border border-gray-200 " />}
-              <SuggestionBox isOpen={isOpen} />
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
-function SuggestionBox({ isOpen }: { isOpen: boolean }) {
-  if (!isOpen) {
-    return (
-      <span className="bg-gray-100 px-2 rounded mr-1 bg-green-100 text-green-700 text-xs">
-        -5ms
-      </span>
-    );
-  }
-  return (
-    <div className="text-xs flex">
-      <div className="flex-1 flex flex-col gap-2">
-        <div className="flex">
-          <p className="font-bold">Remove console.log</p>
-          <span className="bg-gray-100 px-2 rounded mr-1 bg-green-100 text-green-700">-5ms</span>
-        </div>
-
-        <p className="text-xs">Found 12 console.log calls in</p>
-        <div className="flex flex-wrap gap-1 font-mono">
-          <span className="bg-gray-200 px-1 rounded">route</span>
-          <span className="bg-gray-200 px-1 rounded">GET /api/endpoint</span>
-        </div>
-        <div>
-          <button className="border border-gray-200 px-2 rounded">📁 route-handler.ts:23 </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Confidence({ confidence }: { confidence: 'easy' | 'medium' | 'hard' | 'unknown' }) {
-  const styles = {
-    easy: 'text-emerald-700 bg-emerald-50',
-    medium: 'text-amber-700 bg-amber-50',
-    hard: 'text-red-700 bg-red-50',
-    unknown: 'text-gray-600 bg-gray-100',
-  };
-
-  return (
-    <div
-      className={`
-        px-1.5 py-[1px]
-        rounded
-        text-[10px]
-        uppercase
-        tracking-wide
-        ${styles[confidence]}
-      `}
-    >
-      {confidence}
-    </div>
-  );
-}
 
 function Nav() {
   return (

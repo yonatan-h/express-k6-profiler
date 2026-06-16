@@ -52,6 +52,7 @@ export interface EndpointSpan extends BaseSpan {
   type: 'endpoint';
   method: Method;
   path: string;
+  routeExists:boolean
 }
 
 export interface ConsoleLogSpan extends BaseSpan {
@@ -128,7 +129,6 @@ export interface ESpanTableData<T> {
   totalLatencyContributionMs: Change;
   totalCount: Change;
   totalErrorCount: Change;
-  errors: null;
   nested: ESpanTableData<T>[];
   depth:number;
 }

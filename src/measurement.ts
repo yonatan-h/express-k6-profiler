@@ -133,8 +133,9 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
 
       const routePath = req.route?.path ? req.baseUrl + req.route.path : '<unmatched>';
       const endpointSnippet = `${req.method} ${routePath}`;
+      const routeExists = res.statusCode === 404;
 
-      markEnd(endpointIndex, { snippet: endpointSnippet }, { expectSpanContext: true, forceCollapse: true });
+      markEnd(endpointIndex, { snippet: endpointSnippet, routeExists }, { expectSpanContext: true, forceCollapse: true });
       markEnd(rootIndex, {}, { expectSpanContext: true });
 
       const data = getStoredData();

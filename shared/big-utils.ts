@@ -43,7 +43,7 @@ export function makeSpan(partial: Partial<Span> & { type: SpanType }): Span {
     case 'console-log':
       return { ...base, type: 'console-log' };
     case 'endpoint':
-      return { method: 'get', path: '', ...base, type: 'endpoint' };
+      return { method: 'get', path: '', routeExists:true, ...base, type: 'endpoint' };
     default:
       throw new Error(`Invalid span type ${(partial as any).type}`);
   }
@@ -232,7 +232,6 @@ function makeESpanTableData<T>(
     totalCount: makeChange(0, null),
     totalErrorCount: makeChange(0, null),
     depth: 0,
-    errors: null,
     nested,
     snippet: '<snippet>',
     ...partialData,
@@ -260,7 +259,7 @@ interface ResDataInfo<T> {
 function getChildrenAfterSkip(
   spanKey: string,
   spans: Record<string, Span>,
-  skipSpanTypes: SpanType[],
+  skipSpan: (span: Span) => boolean,
 ): string[] {
   const s = spans[spanKey];
   if (!s) {
@@ -275,8 +274,8 @@ function getChildrenAfterSkip(
       console.error(`Child span with key ${id} not found in spans during tree shortening`);
       return [];
     }
-    if (skipSpanTypes.includes(child.type)) {
-      children.push(...getChildrenAfterSkip(id, spans, skipSpanTypes));
+    if (skipSpan(child)) {
+      children.push(...getChildrenAfterSkip(id, spans, skipSpan));
     } else {
       children.push(id);
     }
@@ -289,7 +288,7 @@ function mergeChildTwins(
   key: string,
   result: Record<string, Span>,
   spans: Record<string, Span>,
-  skipSpanTypes: SpanType[],
+  skipSpan: (span: Span) => boolean,
 ) {
   if (!result[key]) {
     console.error(`Span with key ${key} not found in result during tree shortening`);
@@ -324,7 +323,7 @@ function mergeChildTwins(
       const siblingKey = siblingKeys[i];
       const sibling = makeSpan({
         ...spans[siblingKey],
-        spans: getChildrenAfterSkip(siblingKey, spans, skipSpanTypes),
+        spans: getChildrenAfterSkip(siblingKey, spans, skipSpan),
       });
       if (!sibling) {
         console.error(
@@ -341,18 +340,18 @@ function mergeChildTwins(
   }
   //process below layers
   for (const childkey of result[key].spans) {
-    mergeChildTwins(childkey, result, spans, skipSpanTypes);
+    mergeChildTwins(childkey, result, spans, skipSpan);
   }
 }
 
-function shortenTree(spans: Record<string, Span>, skipTypes: SpanType[]): Record<string, Span> {
+function shortenTree(spans: Record<string, Span>, skipSpan: (span: Span) => boolean): Record<string, Span> {
   const result: Record<string, Span> = {};
   const rootResSpan = makeSpan({
     ...spans[rootSpanKey],
-    spans: getChildrenAfterSkip(rootSpanKey, spans, skipTypes),
+    spans: getChildrenAfterSkip(rootSpanKey, spans, skipSpan),
   });
   result[rootSpanKey] = rootResSpan;
-  mergeChildTwins(rootSpanKey, result, spans, skipTypes);
+  mergeChildTwins(rootSpanKey, result, spans, skipSpan);
   // return result;
   return result;
 }
@@ -402,7 +401,6 @@ function genSpanTableData<T>({
   );
   const totalErrorCount = makeChange(0, 0);
   const snippet = span.snippet;
-  const errors = null;
 
   return [
     makeESpanTableData({
@@ -414,7 +412,6 @@ function genSpanTableData<T>({
       avgLatencyContributionMs,
       totalCount,
       snippet,
-      errors,
       totalErrorCount,
       nested: children,
     }),
@@ -495,7 +492,6 @@ export const extr = {
 
   getSpanTableData<T>(
     responseDatas: ResponseData[],
-    skipSpanTypes: SpanType[],
     createExtra: (depth: number, span: Span) => T,
     prevResponseDatas?: ResponseData[],
   ): ReturnGetSpanTableData<T> {
@@ -504,22 +500,27 @@ export const extr = {
       console.error(`Root span with key ${rootSpanKey} not found in current spans`);
       return { table: [], flatTable: [], maxAvgSpanLatencyMs: 0, maxTotalSpanLatencyMs: 0 };
     }
+    
+    const skipSpan = (span:Span)=>{
+      if (span.type === 'root') return true;
+return false;
+    }
 
     const cur = {
-      spans: shortenTree(curSpans, skipSpanTypes),
+      spans: shortenTree(curSpans, skipSpan),
       totalLatency: getTotalLatency(responseDatas),
       totalRequests: getTotalRequests(responseDatas),
     };
 
     const prev = prevResponseDatas
       ? {
-          spans: shortenTree(getMergedSpans(prevResponseDatas), skipSpanTypes),
+          spans: shortenTree(getMergedSpans(prevResponseDatas), skipSpan),
           totalLatency: getTotalLatency(prevResponseDatas),
           totalRequests: getTotalRequests(prevResponseDatas),
         }
       : null;
 
-    const skipRoot = skipSpanTypes.includes('root');
+    const skipRoot = skipSpan(curSpans[rootSpanKey]);
     const spanTableData = genSpanTableData({
       spanKey: rootSpanKey,
       depth: skipRoot ? -1 : 0,

@@ -27,8 +27,8 @@ const extractError = (res: Response, resArgs: any[]): Error | null => {
   if (res.statusCode >= 400) {
     const body = resArgs[0];
     const bodyContent: string = JSON.stringify(body);
-    //TODO: handle if too big bodyContent? or if it's a stream or buffer or something else
-    let errorMessage = `${res.statusCode}-${res.statusMessage}: ${bodyContent ? ': ' + bodyContent : ''}`;
+    const statusMsg = res.statusMessage || '';
+    let errorMessage = `${res.statusCode}${statusMsg ? '-' + statusMsg : ''}${bodyContent ? ': ' + bodyContent : ''}`;
     return new Error(errorMessage);
   }
   return null;
