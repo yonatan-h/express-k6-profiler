@@ -2,8 +2,14 @@
   "name": "express-k6-profiler",
   "version": "0.1.1",
   "description": "A drop-in dashboard to profile Express bottlenecks, middlewares, and database queries during k6 load testing.",
-  "main": "dist/main.js",
-  "types": "dist/main.d.ts",
+  "main": "dist/src/main.js",
+  "types": "dist/src/main.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/main.d.ts",
+      "default": "./dist/src/main.js"
+    }
+  },
   "files": [
     "dist",
     "README.md"

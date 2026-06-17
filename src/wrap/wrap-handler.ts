@@ -3,6 +3,7 @@ import { makeSpanError } from '../../shared/big-utils';
 import { Span, SpanType } from '../../shared/types';
 import { markEnd, markStart } from '../async-storage';
 import { isWrapped, skipWrapping, stampAsWrapped } from '../utils';
+import { addError } from '../measurement';
 
 type HandlerInfo = {
   spanType: SpanType;
@@ -45,6 +46,11 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
 
     if (args.length === 4) [err, req, res, next, ...otherArgs] = args;
     else [req, res, next, ...otherArgs] = args;
+    
+    const passesTypeCheck = res && typeof res.json === 'function' && typeof res.send === 'function'&&typeof next === 'function';
+    if (!passesTypeCheck){
+      return (handler as any)(...args);
+    }
 
     let markIndex: number;
     const hasEnded: [boolean] = [false];
@@ -93,5 +99,7 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     }
   };
 
+  Object.defineProperty(newHandler, 'length', { value: handler.length });
+  
   return newHandler;
 }

@@ -3,7 +3,7 @@ import { getMeasurements, measuringMiddleware, resetMeasurements } from './measu
 import path from 'path';
 import fs from 'fs/promises';
 import { wrapMongoose, wrapRouter } from './wrap/wrap';
-import { log } from './utils';
+import { log, stampSkipWrapping } from './utils';
 import { wrapGlobals } from './wrap/wrap-globals';
 
 export interface KRayOptions {
@@ -11,11 +11,13 @@ export interface KRayOptions {
 }
 
 function addProfilerEndponts(app: Application, options: KRayOptions) {
-  app.get(`${options.prefix}/__profile/api/all`, async (_, res) => {
+  const allHandler = async (_: any, res: any) => {
     res.json(await getMeasurements());
-  });
+  };
+  stampSkipWrapping(allHandler);
+  app.get(`${options.prefix}/__profile/api/all`, allHandler);
 
-  app.get(`${options.prefix}/__profile`, async (_, res) => {
+  const uiHandler = async (_: any, res: any) => {
     let html: string;
 
     if (process.env.__AS_DEV === 'true') {
@@ -27,7 +29,7 @@ function addProfilerEndponts(app: Application, options: KRayOptions) {
         return res.status(502).send('Vite UI server not running' + e.message);
       }
     } else {
-      let htmlPath = path.join(__dirname, 'index.html');
+      let htmlPath = path.join(__dirname,'..', 'index.html');
       try {
         await fs.access(htmlPath);
       } catch {
@@ -38,26 +40,30 @@ function addProfilerEndponts(app: Application, options: KRayOptions) {
     }
 
     res.send(html);
-  });
+  };
+  stampSkipWrapping(uiHandler);
+  app.get(`${options.prefix}/__profile`, uiHandler);
 
-  app.post(`${options.prefix}/__profile/api/reset`, (_, res) => {
+  const resetHandler = (_: any, res: any) => {
     resetMeasurements();
     res.send('ok');
-  });
+  };
+  stampSkipWrapping(resetHandler);
+  app.post(`${options.prefix}/__profile/api/reset`, resetHandler);
 }
 
 export function profile(app: Application, options: KRayOptions = { prefix: '' }) {
   const oldListen = app.listen.bind(app);
   app.use(measuringMiddleware);
+  //TODO: Add a warning to do the profile before the routes are registered
+  addProfilerEndponts(app, options);
 
   app.listen = (...args: any[]) => {
-    addProfilerEndponts(app, options);
-
-    wrapRouter(app.router, '');
+    //TODO: check if it breaks in different express versions
+    wrapRouter((app as any)._router || app.router, '');//instead of .router which is deprecated in 4 and 5
     wrapGlobals();
     wrapMongoose();
 
-    //registered after wrapRouter so it's excluded from wrapping (no storage context needed)
     return oldListen(...args);
   };
   log(
