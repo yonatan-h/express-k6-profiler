@@ -3,6 +3,7 @@ import type { ChangeType } from '../../shared/types';
 export interface RecordingExtra {
   liveRequests: number[];
   userHasSaved: boolean;
+  isAmbient: boolean;
 }
 
 export interface ESpanTableDataExtra {

@@ -6,7 +6,16 @@ import {
   type ReturnGetSpanTableData,
 } from '../../shared/big-utils';
 import { type ESpanTableData, type Recording, type ResponseData } from '../../shared/types';
-import { get, K_BASE_I, K_CUR_I, K_RECORDS, K_RES, K_SELECTED_TD, set } from './storage';
+import {
+  get,
+  K_ACTIVE_RECORD,
+  K_BASE_I,
+  K_CUR_I,
+  K_RECORDS,
+  K_RES,
+  K_SELECTED_TD,
+  set,
+} from './storage';
 import type { DebugError, ESpanTableDataExtra, RecordingExtra, StageType } from './ui-types';
 
 //context
@@ -61,9 +70,21 @@ const path = window.location.pathname;
 const BACKEND_PREFIX = `${window.location.origin}${path}${path.endsWith('/') ? '' : '/'}api`;
 
 export function GlobalContextProvider({ children }: { children: React.ReactNode }) {
-  //core states that are saved in local storage
-  const [records, setRecords] = useState<Recording<RecordingExtra>[]>(get(K_RECORDS, []));
-  useEffect(() => set(K_RECORDS, records), [records]);
+  const makeAmbientRecording = (): Recording<RecordingExtra> => {
+    return makeRecording({
+      startTimeMs: new Date().getTime(),
+      endTimeMs: null,
+      extra: { liveRequests: [], userHasSaved: false, isAmbient: true },
+    });
+  };
+
+  const [savedRecords, setSavedRecords] = useState<Recording<RecordingExtra>[]>(get(K_RECORDS, []));
+  useEffect(() => set(K_RECORDS, savedRecords), [savedRecords]);
+
+  const [activeRecording, setActiveRecording] = useState<Recording<RecordingExtra>>(
+    get(K_ACTIVE_RECORD, makeAmbientRecording()),
+  );
+  useEffect(() => set(K_ACTIVE_RECORD, activeRecording), [activeRecording]);
 
   const [baseIndex, setBaseIndex] = useState<number>(get(K_BASE_I, -1));
   useEffect(() => set(K_BASE_I, baseIndex), [baseIndex]);
@@ -78,25 +99,11 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  
-  
-  const getLast = (recordings: Recording<RecordingExtra>[]) => {
-    const lastRecord: Recording<RecordingExtra> | undefined = recordings?.[recordings.length - 1];
-    return lastRecord;
-  };
-  const getActiveRecording = (recordings: Recording<RecordingExtra>[])=>{
-    const last = getLast(recordings);
-    if (last && last.endTimeMs == null) return last;
-    return makeRecording({extra:{userHasSaved:false}})
-  }
 
-  const recordings = records;
-  const activeRecording = getActiveRecording(recordings);
-  const responseDatas = Object.values(activeRecording.responseDatas)
   const debugErrors = extr.getDebugErrors(activeRecording.responseDatas);
 
-  const baseRecord = recordings[baseIndex] || null;
-  const curRecord = recordings[curIndex] || null;
+  const baseRecord = savedRecords[baseIndex] || null;
+  const curRecord = savedRecords[curIndex] || null;
 
   const tableData = curRecord
     ? extr.getSpanTableData(
@@ -104,8 +111,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         () => ({}),
         baseRecord?.responseDatas ? Object.values(baseRecord.responseDatas) : [],
       )
-    :  extr.getSpanTableData( responseDatas, () => ({})
-    );
+    : extr.getSpanTableData(Object.values(activeRecording.responseDatas), () => ({}));
 
   const selectedTableData = tableData?.flatTable.find((td) => td.spanKey === selectedTDKey) || null;
   const selectTableData = (spanKey: string | null) => {
@@ -116,7 +122,6 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     setSelectedTDKey(spanKey);
   };
 
-
   const refresh = async () => {
     let res: any;
     try {
@@ -124,33 +129,20 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
       setFetchError(null);
       res = await fetch(`${BACKEND_PREFIX}/all`);
       if (!res.ok) throw new Error('API error');
-
       const data = (await res.json()) as ResponseData;
-      const activeRecord = getActiveRecording(recordings);
-
-      setRecords((prevRecords) => {
-        const lastRecord = getLast(prevRecords);
-        if (lastRecord && lastRecord.endTimeMs === null) {
-          const startTimeMs = lastRecord.startTimeMs;
-          const nextRecords = prevRecords.slice(0, -1);
-
-          return [
-            ...nextRecords,
-            makeRecording({
-              ...lastRecord,
-              responseDatas: {
-                ...activeRecord.responseDatas,
-                [data.backendId]: data,
-              },
-              startTimeMs,
-              extra: {
-                ...lastRecord.extra,
-                liveRequests: [...lastRecord.extra.liveRequests, data.status.current.liveRequests],
-              },
-            }),
-          ];
-        }
-        return prevRecords;
+      setActiveRecording((prev) => {
+        if (prev.endTimeMs !== null) return prev; // stopped, don't update
+        return makeRecording({
+          ...prev,
+          responseDatas: {
+            ...prev.responseDatas,
+            [data.backendId]: data,
+          },
+          extra: {
+            ...prev.extra,
+            liveRequests: [...prev.extra.liveRequests, data.status.current.liveRequests],
+          },
+        });
       });
     } catch (error) {
       setFetchError('Failed to fetch recordings');
@@ -161,33 +153,27 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   };
 
   const stopRecording = () => {
-    const lastRecord = getLast(recordings);
-    if (lastRecord?.endTimeMs === null) {
-      const newLastRecord = makeRecording({ ...lastRecord, endTimeMs: new Date().getTime() });
-      const newRecords = [...records.slice(0, -1), newLastRecord];
-      setCurIndex(newRecords.length - 1);
-      setRecords(newRecords);
+    if (activeRecording.endTimeMs === null && !activeRecording.extra.isAmbient) {
+      setActiveRecording((prev) => makeRecording({ ...prev, endTimeMs: new Date().getTime() }));
     } else {
       console.log('no record to stop');
     }
   };
 
   const cancelRecording = () => {
-    const lastRecord = getLast(recordings);
-    if (lastRecord?.endTimeMs === null) {
-      // Discard the currently active recording
-      setRecords(records.slice(0, -1));
+    if (!activeRecording.extra.isAmbient) {
+      setActiveRecording((prev) =>
+        makeRecording({
+          ...prev,
+          endTimeMs: null,
+          extra: { ...prev.extra, isAmbient: true },
+        }),
+      );
     }
   };
 
   const startRecording = async (title: string) => {
-    const lastRecord = getLast(recordings);
-    if (lastRecord?.endTimeMs === null) {
-      lastRecord.endTimeMs = new Date().getTime();
-    }
-    const activeRecord = getActiveRecording(recordings);
-
-    const iters = Math.max(5, Object.values(activeRecord.responseDatas).length);
+    const iters = Math.max(5, Object.values(activeRecording.responseDatas).length);
     await Promise.all(
       Array.from({ length: iters }).map(async () => {
         const res = await fetch(`${BACKEND_PREFIX}/reset`, { method: 'POST' });
@@ -198,63 +184,81 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         }
       }),
     );
-    const newRecord: Recording<RecordingExtra> = makeRecording({
-      id: new Date().getTime().toString(),
-      title,
-      responseDatas: {},
-      extra: { liveRequests: [], userHasSaved: false },
-      startTimeMs: new Date().getTime(),
-      endTimeMs: null,
-    });
-    setRecords([...records, newRecord].filter(record=>record.id !== activeRecord.id));
+    setActiveRecording(
+      makeRecording({
+        id: new Date().getTime().toString(),
+        title,
+        responseDatas: {},
+        extra: { liveRequests: [], userHasSaved: false, isAmbient: false },
+        startTimeMs: new Date().getTime(),
+        endTimeMs: null,
+      }),
+    );
   };
 
   const getStage = (): StageType => {
     const reqThres = 2;
-    const last = getLast(recordings);
-    const totalReqs = last ? extr.getRecordingInfo(last).totalRequests : -1;
-    const isRecording = last?.endTimeMs === null || false;
-    const hasRecordings = recordings.length > 0;
+    const totalReqs = extr.getRecordingInfo(activeRecording).totalRequests;
+    const isRecording = activeRecording.endTimeMs === null && !activeRecording.extra.isAmbient;
 
     if (isRecording && totalReqs >= reqThres) {
       return 'running-k6';
     } else if (isRecording && totalReqs < reqThres) {
       return 'listening';
-    } else if (!hasRecordings) {
-      return 'idle';
-    } else if (hasRecordings && !isRecording && last?.extra.userHasSaved === true) {
-      return 'view-results';
-    } else if (hasRecordings && !isRecording && last?.extra.userHasSaved === false) {
+    } else if (
+      activeRecording.endTimeMs !== null &&
+      !activeRecording.extra.isAmbient &&
+      !activeRecording.extra.userHasSaved
+    ) {
       return 'saving';
-    } else {
-      console.error('Unknown State');
+    } else if (activeRecording.extra.isAmbient && savedRecords.length > 0) {
       return 'view-results';
+    } else if (activeRecording.extra.isAmbient) {
+      return 'idle';
+    } else {
+      console.error('unknown state');
+      return 'idle';
     }
   };
 
   const editRecord = (partial: Recording<RecordingExtra> & { id: string }) => {
     const id = partial.id;
-    const index = recordings.findIndex((r) => r.id === id);
+
+    // editing the active recording (e.g. saving it)
+    if (activeRecording.id === id) {
+      const updated = makeRecording({ ...activeRecording, ...partial });
+      if (updated.extra.userHasSaved && !activeRecording.extra.userHasSaved) {
+        // save: move to records and replace with ambient
+        setSavedRecords((prev) => [...prev, updated]);
+        setCurIndex(savedRecords.length); // point to the newly added record
+        setActiveRecording(makeAmbientRecording());
+      } else {
+        setActiveRecording(updated);
+      }
+      return;
+    }
+
+    // editing a saved record
+    const index = savedRecords.findIndex((r) => r.id === id);
     if (index === -1) {
       console.error(`Recording with id=${id} not found`);
       return;
     }
 
-    const newRecordings = [...recordings];
+    const newRecordings = [...savedRecords];
     newRecordings[index] = makeRecording({
-      ...recordings[index],
+      ...savedRecords[index],
       ...partial,
     });
-    setRecords(newRecordings);
+    setSavedRecords(newRecordings);
   };
 
   const deleteRecord = (id: string) => {
-    setRecords([...records].filter((r) => r.id !== id));
+    setSavedRecords([...savedRecords].filter((r) => r.id !== id));
   };
 
   useEffect(() => {
-    const activeRecord = getActiveRecording(recordings);
-    const replicaCount = Object.values(activeRecord.responseDatas).length;
+    const replicaCount = Object.values(activeRecording.responseDatas).length;
     const ms = safeDivide(defaultRefRate, replicaCount) || defaultRefRate;
     const id = setTimeout(() => refresh(), ms);
     return () => clearTimeout(id);
@@ -268,16 +272,16 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         selectTableData,
         baseRecord,
         tableData,
-        setBaseRecord: (id: string) => setBaseIndex(records.findIndex((r) => r.id === id)),
-        setCurRecord: (id: string) => setCurIndex(records.findIndex((r) => r.id === id)),
-        getLastRecord: () => getLast(recordings),
+        setBaseRecord: (id: string) => setBaseIndex(savedRecords.findIndex((r) => r.id === id)),
+        setCurRecord: (id: string) => setCurIndex(savedRecords.findIndex((r) => r.id === id)),
+        getLastRecord: () => savedRecords[savedRecords.length - 1],
         startRecording,
         stopRecording,
         cancelRecording,
         editRecord,
         deleteRecord,
-        recordings,
-        responseDatas,
+        recordings: savedRecords,
+        responseDatas: Object.values(activeRecording.responseDatas),
         debugErrors,
         loading,
         fetchError,

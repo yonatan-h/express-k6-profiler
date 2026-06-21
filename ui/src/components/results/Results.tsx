@@ -1,4 +1,12 @@
-import { FiActivity, FiAlertCircle, FiAlertTriangle, FiBarChart2, FiClock, FiCode, FiHash } from 'react-icons/fi';
+import {
+  FiActivity,
+  FiAlertCircle,
+  FiAlertTriangle,
+  FiBarChart2,
+  FiClock,
+  FiCode,
+  FiHash,
+} from 'react-icons/fi';
 import { extr, humanNum } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
 import ChangeSpan from '../common/ChangeSpan';
@@ -17,7 +25,6 @@ export default function Results() {
   const maxMs = c.tableData?.maxAvgSpanLatencyMs || 0;
   const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
   const isEmpty = !c.tableData?.table?.length;
-  console.log('Results tableData:', c.tableData);
 
   const maxWidthPx = 150;
 
@@ -42,13 +49,19 @@ export default function Results() {
         <thead>
           <tr className="border-b border-gray-200">
             <th className="px-3 py-2 text-left text-gray-600">
-              <div className="flex items-center gap-1"><FiClock /> Avg latency</div>
+              <div className="flex items-center gap-1">
+                <FiClock /> Avg latency
+              </div>
             </th>
             <th className="px-3 py-2 text-left text-gray-600">
-              <div className="flex items-center gap-1"><FiHash /> Requests</div>
+              <div className="flex items-center gap-1">
+                <FiHash /> Requests
+              </div>
             </th>
             <th className="px-3 py-2 text-left text-gray-600">
-              <div className="flex items-center gap-1"><FiAlertTriangle /> Error rate</div>
+              <div className="flex items-center gap-1">
+                <FiAlertTriangle /> Error rate
+              </div>
             </th>
           </tr>
         </thead>
@@ -74,46 +87,52 @@ export default function Results() {
           </tr>
         </tbody>
       </table>
-      {
-        (!isEmpty) &&
+      {!isEmpty && c.stage !== 'listening' && (
         <>
-
-      <h2 className="pb-6">Latency Breakdown</h2>
-      <table className="w-full border-collapse text-xs">
-        <thead>
-          <tr className="uppercase text-gray-500 text-left">
-            <th className="px-4 py-2 font-normal border-y border-gray-200">
-              <div className="flex items-center gap-1"><FiCode /> Code</div>
-            </th>
-            <th className=" pt-2 font-normal border-y border-gray-200">
-              <Ruler numDivisions={10} max={maxMs} maxWidthPx={maxWidthPx} />
-            </th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">
-              <div className="flex items-center gap-1"><FiClock /> Latency</div>
-            </th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">
-              <div className="flex items-center gap-1"><FiHash /> Count</div>
-            </th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">
-              <div className="flex items-center gap-1"><FiAlertCircle /> Errors</div>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="group">
-          {(c.tableData?.table || []).map((folder, i) => (
-            <Folder
-              key={`${folder.span.filePath || ''}-${folder.span.snippet}-${i}`}
-              data={folder}
-              maxMs={maxMs}
-              maxWidthPx={maxWidthPx}
-            />
-          ))}
-        </tbody>
-      </table>
+          <h2 className="pb-6">Latency Breakdown</h2>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="uppercase text-gray-500 text-left">
+                <th className="px-4 py-2 font-normal border-y border-gray-200">
+                  <div className="flex items-center gap-1">
+                    <FiCode /> Code
+                  </div>
+                </th>
+                <th className=" pt-2 font-normal border-y border-gray-200">
+                  <Ruler numDivisions={10} max={maxMs} maxWidthPx={maxWidthPx} />
+                </th>
+                <th className="px-4 py-2 font-normal border-y border-gray-200">
+                  <div className="flex items-center gap-1">
+                    <FiClock /> Latency
+                  </div>
+                </th>
+                <th className="px-4 py-2 font-normal border-y border-gray-200">
+                  <div className="flex items-center gap-1">
+                    <FiHash /> Count
+                  </div>
+                </th>
+                <th className="px-4 py-2 font-normal border-y border-gray-200">
+                  <div className="flex items-center gap-1">
+                    <FiAlertCircle /> Errors
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="group">
+              {(c.tableData?.table || []).map((folder, i) => (
+                <Folder
+                  key={`${folder.span.filePath || ''}-${folder.span.snippet}-${i}`}
+                  data={folder}
+                  maxMs={maxMs}
+                  maxWidthPx={maxWidthPx}
+                />
+              ))}
+            </tbody>
+          </table>
         </>
-      }
-      
-      {isEmpty && (
+      )}
+
+      {isEmpty && c.stage === 'idle' && (
         <div className="flex flex-col  py-12 text-gray-500">
           <p>No data yet. No traffic.</p>
         </div>
