@@ -7,12 +7,13 @@ import {
 } from '../../shared/big-utils';
 import { type ESpanTableData, type Recording, type ResponseData } from '../../shared/types';
 import { get, K_BASE_I, K_CUR_I, K_RECORDS, K_RES, K_SELECTED_TD, set } from './storage';
-import type { ESpanTableDataExtra, RecordingExtra, StageType } from './ui-types';
+import type { DebugError, ESpanTableDataExtra, RecordingExtra, StageType } from './ui-types';
 
 //context
 interface GlobalContextValue {
   recordings: Recording<RecordingExtra>[];
   responseDatas: ResponseData[];
+  debugErrors: DebugError[];
   loading: boolean;
   fetchError: string | null;
   stage: StageType;
@@ -34,6 +35,7 @@ interface GlobalContextValue {
 const defaultGlobalContext: GlobalContextValue = {
   recordings: [],
   responseDatas: [],
+  debugErrors: [],
   loading: false,
   fetchError: null,
   stage: 'idle',
@@ -63,9 +65,6 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   const [records, setRecords] = useState<Recording<RecordingExtra>[]>(get(K_RECORDS, []));
   useEffect(() => set(K_RECORDS, records), [records]);
 
-  const [resDatasMap, setResDatasMap] = useState<Record<string, ResponseData>>(get(K_RES, {}));
-  useEffect(() => set(K_RES, resDatasMap), [resDatasMap]);
-
   const [baseIndex, setBaseIndex] = useState<number>(get(K_BASE_I, -1));
   useEffect(() => set(K_BASE_I, baseIndex), [baseIndex]);
 
@@ -79,9 +78,22 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  
+  
+  const getLast = (recordings: Recording<RecordingExtra>[]) => {
+    const lastRecord: Recording<RecordingExtra> | undefined = recordings?.[recordings.length - 1];
+    return lastRecord;
+  };
+  const getActiveRecording = (recordings: Recording<RecordingExtra>[])=>{
+    const last = getLast(recordings);
+    if (last && last.endTimeMs == null) return last;
+    return makeRecording({extra:{userHasSaved:false}})
+  }
 
   const recordings = records;
-  const responseDatas = Object.values(resDatasMap);
+  const activeRecording = getActiveRecording(recordings);
+  const responseDatas = Object.values(activeRecording.responseDatas)
+  const debugErrors = extr.getDebugErrors(activeRecording.responseDatas);
 
   const baseRecord = recordings[baseIndex] || null;
   const curRecord = recordings[curIndex] || null;
@@ -90,9 +102,11 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     ? extr.getSpanTableData(
         Object.values(curRecord.responseDatas),
         () => ({}),
-        baseRecord.responseDatas ? Object.values(baseRecord.responseDatas) : [],
+        baseRecord?.responseDatas ? Object.values(baseRecord.responseDatas) : [],
       )
-    : null;
+    :  extr.getSpanTableData( responseDatas, () => ({})
+    );
+
   const selectedTableData = tableData?.flatTable.find((td) => td.spanKey === selectedTDKey) || null;
   const selectTableData = (spanKey: string | null) => {
     if (spanKey && tableData && !tableData.flatTable.find((td) => td.spanKey === spanKey)) {
@@ -102,10 +116,6 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     setSelectedTDKey(spanKey);
   };
 
-  const getLast = (recordings: Recording<RecordingExtra>[]) => {
-    const lastRecord: Recording<RecordingExtra> | undefined = recordings?.[recordings.length - 1];
-    return lastRecord;
-  };
 
   const refresh = async () => {
     let res: any;
@@ -116,23 +126,22 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
       if (!res.ok) throw new Error('API error');
 
       const data = (await res.json()) as ResponseData;
-      const newResponseDatas = {
-        ...resDatasMap,
-        [data.backendId]: data,
-      };
-
-      setResDatasMap(newResponseDatas);
+      const activeRecord = getActiveRecording(recordings);
 
       setRecords((prevRecords) => {
         const lastRecord = getLast(prevRecords);
         if (lastRecord && lastRecord.endTimeMs === null) {
           const startTimeMs = lastRecord.startTimeMs;
           const nextRecords = prevRecords.slice(0, -1);
+
           return [
             ...nextRecords,
             makeRecording({
               ...lastRecord,
-              responseDatas: newResponseDatas,
+              responseDatas: {
+                ...activeRecord.responseDatas,
+                [data.backendId]: data,
+              },
               startTimeMs,
               extra: {
                 ...lastRecord.extra,
@@ -176,8 +185,9 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     if (lastRecord?.endTimeMs === null) {
       lastRecord.endTimeMs = new Date().getTime();
     }
+    const activeRecord = getActiveRecording(recordings);
 
-    const iters = Math.max(5, Object.values(resDatasMap).length);
+    const iters = Math.max(5, Object.values(activeRecord.responseDatas).length);
     await Promise.all(
       Array.from({ length: iters }).map(async () => {
         const res = await fetch(`${BACKEND_PREFIX}/reset`, { method: 'POST' });
@@ -188,15 +198,15 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         }
       }),
     );
-    const newRecord: Recording<RecordingExtra> = {
+    const newRecord: Recording<RecordingExtra> = makeRecording({
       id: new Date().getTime().toString(),
       title,
       responseDatas: {},
       extra: { liveRequests: [], userHasSaved: false },
       startTimeMs: new Date().getTime(),
       endTimeMs: null,
-    };
-    setRecords([...records, newRecord]);
+    });
+    setRecords([...records, newRecord].filter(record=>record.id !== activeRecord.id));
   };
 
   const getStage = (): StageType => {
@@ -243,7 +253,8 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   };
 
   useEffect(() => {
-    const replicaCount = Object.values(resDatasMap).length;
+    const activeRecord = getActiveRecording(recordings);
+    const replicaCount = Object.values(activeRecord.responseDatas).length;
     const ms = safeDivide(defaultRefRate, replicaCount) || defaultRefRate;
     const id = setTimeout(() => refresh(), ms);
     return () => clearTimeout(id);
@@ -267,6 +278,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         deleteRecord,
         recordings,
         responseDatas,
+        debugErrors,
         loading,
         fetchError,
         stage: getStage(),

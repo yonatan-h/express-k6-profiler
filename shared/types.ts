@@ -99,7 +99,7 @@ export interface ResponseData {
   spans: Record<string, Span>;
 
   debug: {
-    errors: { message: string; trace: string }[];
+    errors: { message: string; trace: string; timestampMs: number }[];
   };
 }
 

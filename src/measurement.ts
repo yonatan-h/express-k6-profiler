@@ -107,7 +107,7 @@ export function saveEntries({
 }
 
 export function addError(error: Error) {
-  measurements.debug.errors.push({ message: error.message, trace: error.stack || '' });
+  measurements.debug.errors.push({ message: error.message, trace: error.stack || '', timestampMs: Date.now() });
   if (process.env.__AS_DEV) {
     throw error;
   }

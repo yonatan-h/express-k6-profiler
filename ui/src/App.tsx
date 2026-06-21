@@ -5,6 +5,7 @@ import { TopSummary } from './components/record-bar/RecordBar';
 import Results from './components/results/Results';
 import { StatusBar } from './components/status-bar/StatusBar';
 import { GlobalContextProvider } from './global-context';
+import DebugLogsPopup from './components/common/DebugLogsPopup';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
 
           <Details />
         </div>
+        <DebugLogsPopup />
       </div>
     </GlobalContextProvider>
   );

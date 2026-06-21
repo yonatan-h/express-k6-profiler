@@ -43,7 +43,7 @@ export function makeSpan(partial: Partial<Span> & { type: SpanType }): Span {
     case 'console-log':
       return { ...base, type: 'console-log' };
     case 'endpoint':
-      return { method: 'get', path: '', routeExists:true, ...base, type: 'endpoint' };
+      return { method: 'get', path: '', routeExists: true, ...base, type: 'endpoint' };
     default:
       throw new Error(`Invalid span type ${(partial as any).type}`);
   }
@@ -344,7 +344,10 @@ function mergeChildTwins(
   }
 }
 
-function shortenTree(spans: Record<string, Span>, skipSpan: (span: Span) => boolean): Record<string, Span> {
+function shortenTree(
+  spans: Record<string, Span>,
+  skipSpan: (span: Span) => boolean,
+): Record<string, Span> {
   const result: Record<string, Span> = {};
   const rootResSpan = makeSpan({
     ...spans[rootSpanKey],
@@ -497,14 +500,13 @@ export const extr = {
   ): ReturnGetSpanTableData<T> {
     const curSpans = getMergedSpans(responseDatas);
     if (!curSpans[rootSpanKey]) {
-      console.error(`Root span with key ${rootSpanKey} not found in current spans`);
       return { table: [], flatTable: [], maxAvgSpanLatencyMs: 0, maxTotalSpanLatencyMs: 0 };
     }
-    
-    const skipSpan = (span:Span)=>{
+
+    const skipSpan = (span: Span) => {
       if (span.type === 'root') return true;
-return false;
-    }
+      return false;
+    };
 
     const cur = {
       spans: shortenTree(curSpans, skipSpan),
@@ -641,5 +643,17 @@ return false;
       ago: getDuration(new Date().getTime() - endTimeMs),
       totalRequests: getTotalRequests(Object.values(recording.responseDatas)),
     };
+  },
+
+  getDebugErrors(responseDatas: Record<string, ResponseData>) {
+    const logs: { backendId: string; message: string; trace: string; timestampMs: number }[] = [];
+
+    for (const [backendId, responseData] of Object.entries(responseDatas)) {
+      for (const { trace, message, timestampMs } of responseData.debug.errors) {
+        logs.push({ backendId, message, trace, timestampMs });
+      }
+    }
+    logs.sort((l1, l2) => l1.timestampMs - l2.timestampMs);
+    return logs;
   },
 };

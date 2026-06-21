@@ -17,6 +17,7 @@ export default function Results() {
   const maxMs = c.tableData?.maxAvgSpanLatencyMs || 0;
   const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
   const isEmpty = !c.tableData?.table?.length;
+  console.log('Results tableData:', c.tableData);
 
   const maxWidthPx = 150;
 
@@ -113,8 +114,8 @@ export default function Results() {
       }
       
       {isEmpty && (
-        <div className="flex flex-col items-center py-12 text-gray-500">
-          <p>No data yet. Make some requests to see latency breakdown.</p>
+        <div className="flex flex-col  py-12 text-gray-500">
+          <p>No data yet. No traffic.</p>
         </div>
       )}
     </div>
