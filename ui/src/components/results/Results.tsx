@@ -14,6 +14,7 @@ import Folder from './Folder';
 import NoResultsYet from './NoResultsYet';
 import Ruler from './Ruler';
 
+
 export default function Results() {
   const c = useGContext();
 

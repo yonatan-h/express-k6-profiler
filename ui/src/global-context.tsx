@@ -35,8 +35,8 @@ interface GlobalContextValue {
   deleteRecord: (id: string) => void;
   baseRecord: null | Recording<RecordingExtra>;
   curRecord: null | Recording<RecordingExtra>;
-  setBaseRecord: (id: string) => void;
-  setCurRecord: (id: string) => void;
+  setBaseRecord: (id: string | null) => void;
+  setCurRecord: (id: string | null) => void;
   tableData: null | ReturnGetSpanTableData<ESpanTableDataExtra>;
   selectedTableData: ESpanTableData<ESpanTableDataExtra> | null;
   selectTableData: (spanKey: string | null) => void;
@@ -88,11 +88,11 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   );
   useEffect(() => set(K_ACTIVE_RECORD, activeRecording), [activeRecording]);
 
-  const [baseIndex, setBaseIndex] = useState<number>(get(K_BASE_I, -1));
-  useEffect(() => set(K_BASE_I, baseIndex), [baseIndex]);
+  const [baseId, setBaseId] = useState<string | null>(get(K_BASE_I, null));
+  useEffect(() => set(K_BASE_I, baseId), [baseId]);
 
-  const [curIndex, setCurIndex] = useState<number>(get(K_CUR_I, -1));
-  useEffect(() => set(K_CUR_I, curIndex), [curIndex]);
+  const [curId, setCurId] = useState<string | null>(get(K_CUR_I, null));
+  useEffect(() => set(K_CUR_I, curId), [curId]);
 
   const [selectedTDKey, setSelectedTDKey] = useState<string | null>(get(K_SELECTED_TD, null));
   useEffect(() => set(K_SELECTED_TD, selectedTDKey), [selectedTDKey]);
@@ -131,11 +131,20 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
 
   const stage = getStage();
 
-  let baseRecord = savedRecords[baseIndex] || null;
-  let curRecord = savedRecords[curIndex] || null;
+  let baseRecord = savedRecords.find((r) => r.id === baseId) || null;
+  let curRecord = savedRecords.find((r) => r.id === curId) || (curId === activeRecording.id ? activeRecording : null);
+
+  // If we haven't selected anything yet, default curRecord to the most recent saved, or active
+  if (!curRecord && curId === null) {
+    curRecord = savedRecords.length > 0 ? savedRecords[savedRecords.length - 1] : activeRecording;
+  }
 
   if (stage !== 'view-results') {
     curRecord = activeRecording;
+    baseRecord = null;
+  }
+  
+  if (curRecord?.id === activeRecording.id) {
     baseRecord = null;
   }
 
@@ -217,9 +226,9 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         extra: { ...activeRecording.extra, userHasSaved: true },
       });
       setSavedRecords((prev) => [...prev, updated]);
-      setCurIndex(savedRecords.length);
-      if (savedRecords[baseIndex] === null && savedRecords.length > 0) {
-        setBaseIndex(savedRecords.length - 1);
+      setCurId(updated.id);
+      if (baseId === null && savedRecords.length > 0) {
+        setBaseId(savedRecords[savedRecords.length - 1].id);
       }
       setActiveRecording(makeAmbientRecording());
     } else {
@@ -287,8 +296,13 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         selectTableData,
         baseRecord,
         tableData,
-        setBaseRecord: (id: string) => setBaseIndex(savedRecords.findIndex((r) => r.id === id)),
-        setCurRecord: (id: string) => setCurIndex(savedRecords.findIndex((r) => r.id === id)),
+        setBaseRecord: setBaseId,
+        setCurRecord: (id: string | null) => {
+          setCurId(id);
+          if (id === activeRecording.id) {
+            setBaseId(null);
+          }
+        },
         getActiveRecording: () => activeRecording,
         startRecording,
         stopRecording,
@@ -296,7 +310,10 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         saveRecording,
         editRecord,
         deleteRecord,
-        recordings: savedRecords,
+        recordings: [
+          activeRecording,
+          ...[...savedRecords].sort((a, b) => -(a.endTimeMs || 0) + (b.endTimeMs || 0))
+        ],
         responseDatas: Object.values(activeRecording.responseDatas),
         debugErrors,
         loading,

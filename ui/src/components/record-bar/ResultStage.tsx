@@ -3,6 +3,8 @@ import { IoMdArrowDropdown } from 'react-icons/io';
 import { extr, humanNum } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
 import StartCaptureButton from './StartCaptureButton';
+import { type Recording } from '../../../../shared/types';
+import { type RecordingExtra } from '../../ui-types';
 
 export function ResultStage() {
   const c = useGContext();
@@ -21,8 +23,8 @@ export function ResultStage() {
 
           {c.recordings.length === 1 && <DropDown type="cur" />}
         </div>
-        
-        <StartCaptureButton text='Start Capturing' primary={false}/>
+
+        <StartCaptureButton text="Start Capturing" primary={false} />
       </div>
     </div>
   );
@@ -44,7 +46,7 @@ function DropDown({ type }: { type: 'cur' | 'base' }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  let record = null;
+  let record: Recording<RecordingExtra> | null = null;
   if (type === 'cur') {
     record = c.curRecord;
   } else {
@@ -58,7 +60,13 @@ function DropDown({ type }: { type: 'cur' | 'base' }) {
         className="flex items-center gap-2 rounded border border-gray-400 px-3 py-1  text-sm bg-white"
       >
         <div className="text-xs">
-          <div>{record?.title || 'Choose'} </div>
+          <div>
+            {type === 'base' && record?.title}
+            {type === 'base' && !record && 'None'}
+            {type === 'cur' && !record && 'Choose'}
+            {type === 'cur' && record?.extra.isAmbient && 'Idle Capture'}
+            {type === 'cur' && !record?.extra.isAmbient && record?.title}
+          </div>
         </div>
 
         <IoMdArrowDropdown className="text-gray-500" />
@@ -73,12 +81,24 @@ function DropDown({ type }: { type: 'cur' | 'base' }) {
           </p>
           <hr className="border-gray-200" />
 
+          {type === 'base' && (
+            <button
+              className="w-full text-start rounded px-3 py-1 hover:bg-gray-100 transition-colors text-gray-600"
+              onClick={() => {
+                c.setBaseRecord(null);
+                setIsOpen(false);
+              }}
+            >
+              <span>None (unselect)</span>
+            </button>
+          )}
+
           {c.recordings.map((recording) => {
             const info = extr.getRecordingInfo(recording);
             return (
               <button
                 key={recording.id}
-                className="w-full rounded px-3 py-1 hover:bg-gray-50"
+                className="w-full text-start rounded px-3 py-1 hover:bg-gray-100 transition-colors"
                 onClick={() => {
                   if (type === 'cur') {
                     c.setCurRecord(recording.id);
