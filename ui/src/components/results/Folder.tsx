@@ -77,11 +77,11 @@ export default function Folder({
           )}
         </td>
 
-        <td className="py-1 px-4 border-y border-gray-200 text-gray-500">{data.totalCount.cur}</td>
+        <td className="py-1 px-4 border-y border-gray-200 text-gray-500">{humanNum(data.totalCount.cur)}</td>
         <td className="py-1 px-4 border-y border-gray-200 text-gray-500">
           {errorCount ? (
             <span className="text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold">
-              {errorCount}
+              {humanNum(errorCount)}
             </span>
           ) : (
             <span>-</span>
