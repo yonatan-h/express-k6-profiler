@@ -15,12 +15,9 @@ export default function Results() {
 
   const maxMs = c.tableData?.maxAvgSpanLatencyMs || 0;
   const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
+  const isEmpty = !c.tableData?.table?.length;
 
   const maxWidthPx = 150;
-
-  if (Object.values(c.responseDatas).length <= 0) {
-    return <NoResultsYet />;
-  }
 
   const latChangeType = extr.getChangeType(kpis.avgLatency, {
     judge: 'less-is-better',
@@ -69,6 +66,10 @@ export default function Results() {
           </tr>
         </tbody>
       </table>
+      {
+        (!isEmpty) &&
+        <>
+
       <h2 className="pb-6">Latency Breakdown</h2>
       <table className="border-collapse w-full text-xs">
         <thead>
@@ -93,6 +94,14 @@ export default function Results() {
           ))}
         </tbody>
       </table>
+        </>
+      }
+      
+      {isEmpty && (
+        <div className="flex flex-col items-center py-12 text-gray-500">
+          <p>No data yet. Make some requests to see latency breakdown.</p>
+        </div>
+      )}
     </div>
   );
 }

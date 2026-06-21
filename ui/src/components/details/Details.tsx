@@ -9,11 +9,7 @@ export function Details() {
   const selected = c.selectedTableData;
 
   if (!selected) {
-    return (
-      <div className="flex-1 p-4 bg-white border border-gray-200 rounded text-gray-500 text-center text-xs">
-        No span selected. Select a span to view details.
-      </div>
-    );
+    return null;
   }
 
   return (
