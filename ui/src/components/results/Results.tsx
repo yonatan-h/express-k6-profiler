@@ -1,3 +1,4 @@
+import { FiActivity, FiAlertCircle, FiAlertTriangle, FiBarChart2, FiClock, FiCode, FiHash } from 'react-icons/fi';
 import { extr, humanNum } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
 import ChangeSpan from '../common/ChangeSpan';
@@ -36,12 +37,18 @@ export default function Results() {
 
   return (
     <div className="p-3 bg-white rounded flex-1 overflow-auto border border-gray-200">
-      <table className="w-full border-collapse mb-6 text-xs">
+      <table className="border-collapse mb-6 text-xs">
         <thead>
           <tr className="border-b border-gray-200">
-            <th className="px-3 py-2 text-left text-gray-600">Avg latency</th>
-            <th className="px-3 py-2 text-left text-gray-600">Requests</th>
-            <th className="px-3 py-2 text-left text-gray-600">Error rate</th>
+            <th className="px-3 py-2 text-left text-gray-600">
+              <div className="flex items-center gap-1"><FiClock /> Avg latency</div>
+            </th>
+            <th className="px-3 py-2 text-left text-gray-600">
+              <div className="flex items-center gap-1"><FiBarChart2 /> Requests</div>
+            </th>
+            <th className="px-3 py-2 text-left text-gray-600">
+              <div className="flex items-center gap-1"><FiAlertTriangle /> Error rate</div>
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 text-lg">
@@ -71,16 +78,24 @@ export default function Results() {
         <>
 
       <h2 className="pb-6">Latency Breakdown</h2>
-      <table className="border-collapse w-full text-xs">
+      <table className="border-collapse text-xs">
         <thead>
           <tr className="uppercase text-gray-500 text-left">
-            <th className="px-4 py-2 font-normal border-y border-gray-200">Code</th>
+            <th className="px-4 py-2 font-normal border-y border-gray-200">
+              <div className="flex items-center gap-1"><FiCode /> Code</div>
+            </th>
             <th className=" pt-2 font-normal border-y border-gray-200">
               <Ruler numDivisions={10} max={maxMs} maxWidthPx={maxWidthPx} />
             </th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">Latency</th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">Count</th>
-            <th className="px-4 py-2 font-normal border-y border-gray-200">Errors</th>
+            <th className="px-4 py-2 font-normal border-y border-gray-200">
+              <div className="flex items-center gap-1"><FiClock /> Latency</div>
+            </th>
+            <th className="px-4 py-2 font-normal border-y border-gray-200">
+              <div className="flex items-center gap-1"><FiHash /> Count</div>
+            </th>
+            <th className="px-4 py-2 font-normal border-y border-gray-200">
+              <div className="flex items-center gap-1"><FiAlertCircle /> Errors</div>
+            </th>
           </tr>
         </thead>
         <tbody className="group">
