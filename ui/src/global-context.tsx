@@ -31,7 +31,7 @@ interface GlobalContextValue {
   stopRecording: () => void;
   cancelRecording: () => void;
   saveRecording: (partial: Partial<Recording<RecordingExtra>>) => void;
-  editRecord: (partial: Recording<RecordingExtra> & { id: string }) => void;
+  editRecord: (partial: Partial<Recording<RecordingExtra>> & { id: string }) => void;
   deleteRecord: (id: string) => void;
   baseRecord: null | Recording<RecordingExtra>;
   curRecord: null | Recording<RecordingExtra>;
@@ -104,16 +104,51 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
 
   const debugErrors = extr.getDebugErrors(activeRecording.responseDatas);
 
-  const baseRecord = savedRecords[baseIndex] || null;
-  const curRecord = savedRecords[curIndex] || null;
+  const getStage = (): StageType => {
+    const reqThres = 2;
+    const totalReqs = extr.getRecordingInfo(activeRecording).totalRequests;
+    const isRecording = activeRecording.endTimeMs === null && !activeRecording.extra.isAmbient;
 
-  const tableData = curRecord
-    ? extr.getSpanTableData(
-        Object.values(curRecord.responseDatas),
-        () => ({}),
-        baseRecord?.responseDatas ? Object.values(baseRecord.responseDatas) : [],
-      )
-    : extr.getSpanTableData(Object.values(activeRecording.responseDatas), () => ({}));
+    if (isRecording && totalReqs >= reqThres) {
+      return 'running-k6';
+    } else if (isRecording && totalReqs < reqThres) {
+      return 'listening';
+    } else if (
+      activeRecording.endTimeMs !== null &&
+      !activeRecording.extra.isAmbient &&
+      !activeRecording.extra.userHasSaved
+    ) {
+      return 'saving';
+    } else if (activeRecording.extra.isAmbient && savedRecords.length > 0) {
+      return 'view-results';
+    } else if (activeRecording.extra.isAmbient) {
+      return 'idle';
+    } else {
+      console.error('unknown state');
+      return 'idle';
+    }
+  };
+
+  const stage = getStage();
+
+  let baseRecord = savedRecords[baseIndex] || null;
+  let curRecord = savedRecords[curIndex] || null;
+
+  if (stage !== 'view-results') {
+    curRecord = activeRecording;
+    baseRecord = null;
+  }
+
+  const getTableData = (): ReturnGetSpanTableData<ESpanTableDataExtra> | null => {
+    if (!curRecord) return null;
+    return extr.getSpanTableData(
+      Object.values(curRecord.responseDatas),
+      () => ({}),
+      baseRecord?.responseDatas ? Object.values(baseRecord.responseDatas) : null,
+    );
+  };
+
+  const tableData = getTableData();
 
   const selectedTableData = tableData?.flatTable.find((td) => td.spanKey === selectedTDKey) || null;
   const selectTableData = (spanKey: string | null) => {
@@ -174,9 +209,18 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     }
   };
 
-  const saveRecording = () => {
+  const saveRecording = (partial: Partial<Recording<RecordingExtra>>) => {
     if (!activeRecording.extra.isAmbient && activeRecording.endTimeMs !== null) {
-      setSavedRecords((prev) => [...prev, activeRecording]);
+      const updated = makeRecording({
+        ...activeRecording,
+        ...partial,
+        extra: { ...activeRecording.extra, userHasSaved: true },
+      });
+      setSavedRecords((prev) => [...prev, updated]);
+      setCurIndex(savedRecords.length);
+      if (savedRecords[baseIndex] === null && savedRecords.length > 0) {
+        setBaseIndex(savedRecords.length - 1);
+      }
       setActiveRecording(makeAmbientRecording());
     } else {
       console.error('cant save');
@@ -207,49 +251,9 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     );
   };
 
-  const getStage = (): StageType => {
-    const reqThres = 2;
-    const totalReqs = extr.getRecordingInfo(activeRecording).totalRequests;
-    const isRecording = activeRecording.endTimeMs === null && !activeRecording.extra.isAmbient;
-
-    if (isRecording && totalReqs >= reqThres) {
-      return 'running-k6';
-    } else if (isRecording && totalReqs < reqThres) {
-      return 'listening';
-    } else if (
-      activeRecording.endTimeMs !== null &&
-      !activeRecording.extra.isAmbient &&
-      !activeRecording.extra.userHasSaved
-    ) {
-      return 'saving';
-    } else if (activeRecording.extra.isAmbient && savedRecords.length > 0) {
-      return 'view-results';
-    } else if (activeRecording.extra.isAmbient) {
-      return 'idle';
-    } else {
-      console.error('unknown state');
-      return 'idle';
-    }
-  };
-
-  const editRecord = (partial: Recording<RecordingExtra> & { id: string }) => {
+  const editRecord = (partial: Partial<Recording<RecordingExtra>> & { id: string }) => {
     const id = partial.id;
 
-    // editing the active recording (e.g. saving it)
-    if (activeRecording.id === id) {
-      const updated = makeRecording({ ...activeRecording, ...partial });
-      if (updated.extra.userHasSaved && !activeRecording.extra.userHasSaved) {
-        // save: move to records and replace with ambient
-        setSavedRecords((prev) => [...prev, updated]);
-        setCurIndex(savedRecords.length); // point to the newly added record
-        setActiveRecording(makeAmbientRecording());
-      } else {
-        setActiveRecording(updated);
-      }
-      return;
-    }
-
-    // editing a saved record
     const index = savedRecords.findIndex((r) => r.id === id);
     if (index === -1) {
       console.error(`Recording with id=${id} not found`);
