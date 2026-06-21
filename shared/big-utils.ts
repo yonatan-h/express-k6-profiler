@@ -514,7 +514,7 @@ export const extr = {
       totalRequests: getTotalRequests(responseDatas),
     };
 
-    const prev = prevResponseDatas
+    const prev = prevResponseDatas?.length
       ? {
           spans: shortenTree(getMergedSpans(prevResponseDatas), skipSpan),
           totalLatency: getTotalLatency(prevResponseDatas),

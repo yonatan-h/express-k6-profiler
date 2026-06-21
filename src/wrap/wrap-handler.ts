@@ -35,6 +35,9 @@ const extractError = (res: Response, resArgs: any[]): Error | null => {
   return null;
 };
 
+const originalJsonMap = new WeakMap<Response, Function>();
+const originalSendMap = new WeakMap<Response, Function>();
+
 export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandler {
   if (skipWrapping(handler) || isWrapped(handler)) {
     return handler;
@@ -55,18 +58,20 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     let markIndex: number;
     const hasEnded: [boolean] = [false];
 
-    const oldResJson = res.json.bind(res);
-    //TODO: results in super nested .json methods
-    res.json = (...args: any[]) => {
-      onEnd(markIndex, hasEnded, extractError(res, args), true);
-      return oldResJson(...args);
+    if (!originalJsonMap.has(res)) {
+      originalJsonMap.set(res, res.json.bind(res));
+    }
+    res.json = (...jsonArgs: any[]) => {
+      onEnd(markIndex, hasEnded, extractError(res, jsonArgs), true);
+      return originalJsonMap.get(res)!(...jsonArgs);
     };
 
-    //TODO: results in super nested .send methods
-    const oldResSend = res.send.bind(res);
-    res.send = (...args: any[]) => {
-      onEnd(markIndex, hasEnded, extractError(res, args), true);
-      return oldResSend(...args);
+    if (!originalSendMap.has(res)) {
+      originalSendMap.set(res, res.send.bind(res));
+    }
+    res.send = (...sendArgs: any[]) => {
+      onEnd(markIndex, hasEnded, extractError(res, sendArgs), true);
+      return originalSendMap.get(res)!(...sendArgs);
     };
 
     const newNext = (...nextArgs: any[]) => {
