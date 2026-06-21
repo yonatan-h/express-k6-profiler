@@ -1,4 +1,5 @@
 import { FaCircle, FaStop } from 'react-icons/fa';
+import CancelButton from './CancelButton';
 import { extr, makeRecording, safeDivide } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
 import type { RecordingExtra } from '../../ui-types';
@@ -61,11 +62,12 @@ export function RecordingStage() {
         </div>
 
         <div className="flex gap-3 items-center">
+          <CancelButton />
           <button
             onClick={() => {
               c.stopRecording();
             }}
-            className="h-full flex gap-1 items-center hover:border-gray-100 rounded text-xs"
+            className="h-full flex gap-1 items-center hover:border-gray-100 rounded text-xs font-medium"
           >
             <FaStop className="text-gray-600" />
             Stop

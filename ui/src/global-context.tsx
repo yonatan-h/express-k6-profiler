@@ -19,6 +19,7 @@ interface GlobalContextValue {
   startRecording: (title: string) => Promise<void>;
   getLastRecord: () => Recording<RecordingExtra> | undefined;
   stopRecording: () => void;
+  cancelRecording: () => void;
   editRecord: (partial: Recording<RecordingExtra> & { id: string }) => void;
   deleteRecord: (id: string) => void;
   baseRecord: null | Recording<RecordingExtra>;
@@ -39,6 +40,7 @@ const defaultGlobalContext: GlobalContextValue = {
   startRecording: async () => {},
   getLastRecord: () => undefined,
   stopRecording: () => {},
+  cancelRecording: () => {},
   editRecord: () => {},
   deleteRecord: () => {},
   baseRecord: null,
@@ -161,6 +163,14 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     }
   };
 
+  const cancelRecording = () => {
+    const lastRecord = getLast(recordings);
+    if (lastRecord?.endTimeMs === null) {
+      // Discard the currently active recording
+      setRecords(records.slice(0, -1));
+    }
+  };
+
   const startRecording = async (title: string) => {
     const lastRecord = getLast(recordings);
     if (lastRecord?.endTimeMs === null) {
@@ -252,6 +262,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         getLastRecord: () => getLast(recordings),
         startRecording,
         stopRecording,
+        cancelRecording,
         editRecord,
         deleteRecord,
         recordings,
