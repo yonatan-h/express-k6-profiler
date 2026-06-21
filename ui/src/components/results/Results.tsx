@@ -44,7 +44,7 @@ export default function Results() {
               <div className="flex items-center gap-1"><FiClock /> Avg latency</div>
             </th>
             <th className="px-3 py-2 text-left text-gray-600">
-              <div className="flex items-center gap-1"><FiBarChart2 /> Requests</div>
+              <div className="flex items-center gap-1"><FiHash /> Requests</div>
             </th>
             <th className="px-3 py-2 text-left text-gray-600">
               <div className="flex items-center gap-1"><FiAlertTriangle /> Error rate</div>
@@ -78,7 +78,7 @@ export default function Results() {
         <>
 
       <h2 className="pb-6">Latency Breakdown</h2>
-      <table className="border-collapse text-xs">
+      <table className="w-full border-collapse text-xs">
         <thead>
           <tr className="uppercase text-gray-500 text-left">
             <th className="px-4 py-2 font-normal border-y border-gray-200">
