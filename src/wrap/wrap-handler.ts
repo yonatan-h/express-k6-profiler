@@ -37,6 +37,7 @@ const extractError = (res: Response, resArgs: any[]): Error | null => {
 
 const originalJsonMap = new WeakMap<Response, Function>();
 const originalSendMap = new WeakMap<Response, Function>();
+const hasReturnedMap = new WeakMap<Response, boolean>();
 
 export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): RequestHandler {
   if (skipWrapping(handler) || isWrapped(handler)) {
@@ -62,7 +63,9 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
       originalJsonMap.set(res, res.json.bind(res));
     }
     res.json = (...jsonArgs: any[]) => {
-      onEnd(markIndex, hasEnded, extractError(res, jsonArgs), true);
+      const isFirstReturn = !hasReturnedMap.get(res);
+      if (isFirstReturn) hasReturnedMap.set(res, true);
+      onEnd(markIndex, hasEnded, extractError(res, jsonArgs), isFirstReturn);
       return originalJsonMap.get(res)!(...jsonArgs);
     };
 
@@ -70,7 +73,9 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
       originalSendMap.set(res, res.send.bind(res));
     }
     res.send = (...sendArgs: any[]) => {
-      onEnd(markIndex, hasEnded, extractError(res, sendArgs), true);
+      const isFirstReturn = !hasReturnedMap.get(res);
+      if (isFirstReturn) hasReturnedMap.set(res, true);
+      onEnd(markIndex, hasEnded, extractError(res, sendArgs), isFirstReturn);
       return originalSendMap.get(res)!(...sendArgs);
     };
 

@@ -27,7 +27,7 @@ function getStore(): SpanStore {
 function genSpanKey(stack: SpanStore['stack'], span: Span): string {
   return span.type === 'root'
     ? rootSpanKey
-    : `${stack.map((s) =>  s.span.snippet).join(':')}:${span.snippet}`;
+    : `${stack.map((s) => s.span.snippet).join(':')}:${span.snippet}`;
 }
 
 function printStack(stack: SpanStore['stack']) {

@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useGContext } from '../../global-context';
 
 export default function DebugLogsPopup() {
-  const { debugErrors: { total, errors } } = useGContext();
+  const {
+    debugErrors: { total, errors },
+  } = useGContext();
   const [isOpen, setIsOpen] = useState(false);
 
   if (total === 0) {
@@ -19,7 +21,7 @@ export default function DebugLogsPopup() {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-12 left-4 w-1/2 h-[50vh] overflow-auto bg-white border rounded  p-2 text-xs font-mono shadow">
+        <div className="fixed bottom-12 left-4 w-1/2 h-[50vh] overflow-auto bg-white border rounded p-2 text-xs font-mono shadow z-9999">
           <div className="flex justify-end">
             <button onClick={() => setIsOpen(false)} className="underline mb-2 font-bold">
               Close

@@ -132,7 +132,9 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
   const stage = getStage();
 
   let baseRecord = savedRecords.find((r) => r.id === baseId) || null;
-  let curRecord = savedRecords.find((r) => r.id === curId) || (curId === activeRecording.id ? activeRecording : null);
+  let curRecord =
+    savedRecords.find((r) => r.id === curId) ||
+    (curId === activeRecording.id ? activeRecording : null);
 
   // If we haven't selected anything yet, default curRecord to the most recent saved, or active
   if (!curRecord && curId === null) {
@@ -143,7 +145,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     curRecord = activeRecording;
     baseRecord = null;
   }
-  
+
   if (curRecord?.id === activeRecording.id) {
     baseRecord = null;
   }
@@ -310,10 +312,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         saveRecording,
         editRecord,
         deleteRecord,
-        recordings: [
-          activeRecording,
-          ...[...savedRecords].sort((a, b) => -(a.endTimeMs || 0) + (b.endTimeMs || 0))
-        ],
+        recordings: [...savedRecords].sort((a, b) => -(a.endTimeMs || 0) + (b.endTimeMs || 0)),
         responseDatas: Object.values(activeRecording.responseDatas),
         debugErrors,
         loading,
