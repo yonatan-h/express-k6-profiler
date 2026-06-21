@@ -7,11 +7,9 @@ export function SaveLastRecordingModal() {
   const c = useGContext();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const lastRecord =
-    c.getLastRecord() ||
-    makeRecording<RecordingExtra>({ extra: { liveRequests: [0], userHasSaved: false } });
+  const activeRecord = c.getActiveRecording();
 
-  const [title, setTitle] = useState(lastRecord?.title || '');
+  const [title, setTitle] = useState(activeRecord?.title || '');
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -19,12 +17,11 @@ export function SaveLastRecordingModal() {
 
   const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log('hello');
-    c.editRecord({ ...lastRecord, title, extra: { ...lastRecord.extra, userHasSaved: true } });
+    c.saveRecording({title});
   };
 
   const handleCancel = () => {
-    c.deleteRecord(lastRecord.id);
+    c.cancelRecording();
   };
 
   useEffect(() => {}, []);

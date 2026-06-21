@@ -646,14 +646,16 @@ export const extr = {
   },
 
   getDebugErrors(responseDatas: Record<string, ResponseData>) {
-    const logs: { backendId: string; message: string; trace: string; timestampMs: number }[] = [];
+    const logs: { backendId: string; message: string; trace: string; count: number; firstTimestampMs: number; lastTimestampMs: number }[] = [];
+    let total = 0;
 
     for (const [backendId, responseData] of Object.entries(responseDatas)) {
-      for (const { trace, message, timestampMs } of responseData.debug.errors) {
-        logs.push({ backendId, message, trace, timestampMs });
+      total += responseData.debug.totalErrors || 0;
+      for (const entry of Object.values(responseData.debug.errors)) {
+        logs.push({ backendId, ...entry });
       }
     }
-    logs.sort((l1, l2) => l1.timestampMs - l2.timestampMs);
-    return logs;
+    logs.sort((l1, l2) => l2.lastTimestampMs - l1.lastTimestampMs);
+    return { total, errors: logs };
   },
 };

@@ -22,14 +22,15 @@ import type { DebugError, ESpanTableDataExtra, RecordingExtra, StageType } from 
 interface GlobalContextValue {
   recordings: Recording<RecordingExtra>[];
   responseDatas: ResponseData[];
-  debugErrors: DebugError[];
+  debugErrors: { total: number; errors: DebugError[] };
   loading: boolean;
   fetchError: string | null;
   stage: StageType;
   startRecording: (title: string) => Promise<void>;
-  getLastRecord: () => Recording<RecordingExtra> | undefined;
+  getActiveRecording: () => Recording<RecordingExtra>;
   stopRecording: () => void;
   cancelRecording: () => void;
+  saveRecording: (partial: Partial<Recording<RecordingExtra>>) => void;
   editRecord: (partial: Recording<RecordingExtra> & { id: string }) => void;
   deleteRecord: (id: string) => void;
   baseRecord: null | Recording<RecordingExtra>;
@@ -44,14 +45,15 @@ interface GlobalContextValue {
 const defaultGlobalContext: GlobalContextValue = {
   recordings: [],
   responseDatas: [],
-  debugErrors: [],
+  debugErrors: { total: 0, errors: [] },
   loading: false,
   fetchError: null,
   stage: 'idle',
   startRecording: async () => {},
-  getLastRecord: () => undefined,
+  getActiveRecording: () => ({}) as any,
   stopRecording: () => {},
   cancelRecording: () => {},
+  saveRecording: () => {},
   editRecord: () => {},
   deleteRecord: () => {},
   baseRecord: null,
@@ -156,7 +158,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     if (activeRecording.endTimeMs === null && !activeRecording.extra.isAmbient) {
       setActiveRecording((prev) => makeRecording({ ...prev, endTimeMs: new Date().getTime() }));
     } else {
-      console.log('no record to stop');
+      console.error('no record to stop');
     }
   };
 
@@ -169,6 +171,15 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
           extra: { ...prev.extra, isAmbient: true },
         }),
       );
+    }
+  };
+
+  const saveRecording = () => {
+    if (!activeRecording.extra.isAmbient && activeRecording.endTimeMs !== null) {
+      setSavedRecords((prev) => [...prev, activeRecording]);
+      setActiveRecording(makeAmbientRecording());
+    } else {
+      console.error('cant save');
     }
   };
 
@@ -274,10 +285,11 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         tableData,
         setBaseRecord: (id: string) => setBaseIndex(savedRecords.findIndex((r) => r.id === id)),
         setCurRecord: (id: string) => setCurIndex(savedRecords.findIndex((r) => r.id === id)),
-        getLastRecord: () => savedRecords[savedRecords.length - 1],
+        getActiveRecording: () => activeRecording,
         startRecording,
         stopRecording,
         cancelRecording,
+        saveRecording,
         editRecord,
         deleteRecord,
         recordings: savedRecords,

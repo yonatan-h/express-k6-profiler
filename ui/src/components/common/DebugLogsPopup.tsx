@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useGContext } from '../../global-context';
 
 export default function DebugLogsPopup() {
-  const { debugErrors } = useGContext();
+  const { debugErrors: { total, errors } } = useGContext();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (debugErrors.length === 0) {
+  if (total === 0) {
     return null;
   }
 
@@ -15,7 +15,7 @@ export default function DebugLogsPopup() {
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-4 left-4 bg-white border border-gray-700 rounded px-2 text-xs  "
       >
-        Debug Errors ({debugErrors.length})
+        Debug Errors ({total})
       </button>
 
       {isOpen && (
@@ -25,11 +25,12 @@ export default function DebugLogsPopup() {
               Close
             </button>
           </div>
-          {debugErrors.map((err, i) => (
+          {errors.map((err, i) => (
             <div key={i} className="mb-2 border-b border-black pb-2">
               <div>
-                <span className="font-bold">{err.backendId}</span> -{' '}
-                {new Date(err.timestampMs).toLocaleTimeString()}
+                <span className="font-bold">{err.backendId}</span> –{' '}
+                {new Date(err.lastTimestampMs).toLocaleTimeString()}
+                {err.count > 1 && <span> (×{err.count})</span>}
               </div>
               <div className="font-bold">{err.message}</div>
               <pre className="whitespace-pre-wrap">{err.trace}</pre>

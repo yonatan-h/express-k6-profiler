@@ -10,9 +10,7 @@ const pad = (liveReqs: number[], maxLiveReqs: number): number[] => {
 };
 export function RecordingStage() {
   const c = useGContext();
-  const recording =
-    c.getLastRecord() ||
-    makeRecording<RecordingExtra>({ extra: { liveRequests: [0], userHasSaved: false } });
+  const recording = c.getActiveRecording();
   const recordingInfo = extr.getRecordingInfo(recording);
 
   const barWidthPx = 4;
@@ -29,7 +27,7 @@ export function RecordingStage() {
           <div className="flex gap-2 items-center">
             <div>
               <div className="rounded-full p-2 bg-red-100 flex justify-center items-center border border-red-200">
-                <FaCircle className="text-red-600 " />
+                <FaCircle className="text-red-600 animate-pulse" />
               </div>
             </div>
             <div className="flex flex-col justify-between">

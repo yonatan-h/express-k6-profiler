@@ -17,7 +17,8 @@ export function createMeasurements(): ResponseData {
     },
     spans: {},
     debug: {
-      errors: [],
+      totalErrors: 0,
+      errors: {},
     },
   };
 
@@ -106,8 +107,40 @@ export function saveEntries({
   });
 }
 
+
 export function addError(error: Error) {
-  measurements.debug.errors.push({ message: error.message, trace: error.stack || '', timestampMs: Date.now() });
+  const MAX_UNIQUE_ERRORS = 5;
+  measurements.debug.totalErrors++;
+  
+  const errors = measurements.debug.errors;
+  const key = error.message;
+  const now = Date.now();
+
+  if (errors[key]) {
+    errors[key].count++;
+    errors[key].lastTimestampMs = now;
+    errors[key].trace = error.stack || '';
+  } else {
+    // evict oldest if at capacity
+    const keys = Object.keys(errors);
+    if (keys.length >= MAX_UNIQUE_ERRORS) {
+      let oldestKey = keys[0];
+      for (const k of keys) {
+        if (errors[k].lastTimestampMs < errors[oldestKey].lastTimestampMs) {
+          oldestKey = k;
+        }
+      }
+      delete errors[oldestKey];
+    }
+    errors[key] = {
+      message: error.message,
+      trace: error.stack || '',
+      count: 1,
+      firstTimestampMs: now,
+      lastTimestampMs: now,
+    };
+  }
+
   if (process.env.__AS_DEV) {
     throw error;
   }

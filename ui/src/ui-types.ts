@@ -16,5 +16,7 @@ export interface DebugError {
   backendId: string;
   message: string;
   trace: string;
-  timestampMs: number;
+  count: number;
+  firstTimestampMs: number;
+  lastTimestampMs: number;
 }

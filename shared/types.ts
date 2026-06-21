@@ -87,6 +87,14 @@ export interface Status {
 //         -> fetch
 //         -> Promise.all
 //             -> tree below handlers ...
+export interface DebugErrorEntry {
+  message: string;
+  trace: string;
+  count: number;
+  firstTimestampMs: number;
+  lastTimestampMs: number;
+}
+
 export interface ResponseData {
   backendId: string;
   isProductionMode: boolean;
@@ -99,7 +107,8 @@ export interface ResponseData {
   spans: Record<string, Span>;
 
   debug: {
-    errors: { message: string; trace: string; timestampMs: number }[];
+    totalErrors: number;
+    errors: Record<string, DebugErrorEntry>;
   };
 }
 
