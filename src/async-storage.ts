@@ -90,8 +90,12 @@ export function markEnd(
       );
     }
 
-    if (hasReturned && !s.returnedSpanKey) {
+    if (hasReturned) {
+      if (s.returnedSpanKey) {
+        addError(new Error(`Returned span key already set to ${s.returnedSpanKey}`));
+      } else {
       s.returnedSpanKey = genSpanKey(s.stack.slice(0, index), s.stack[index].span);
+    }
     }
 
     //incase of force collapsing or normal collapsing

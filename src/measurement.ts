@@ -141,8 +141,11 @@ export function addError(error: Error) {
     };
   }
 
-  if (process.env.__AS_DEV) {
-    throw error;
+  if (process.env.__AS_DEV === 'true') {
+    //so that its not handled by express
+    setTimeout(() => {
+      throw error;
+    }, 0);
   }
 }
 
