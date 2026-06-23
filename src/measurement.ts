@@ -70,48 +70,10 @@ export async function getMeasurements() {
   return measurements;
 }
 
-export function saveEntries({
-  spans,
-  returnedSpan,
-  req,
-}: {
-  spans: Record<string, Span>;
-  returnedSpan: MiddlewareSpan | RouteSpan | null;
-  req: Request;
-}) {
-  let endpointKey: string | null = null;
-  for (const [key, span] of Object.entries(spans)) {
-    if (span.type === 'endpoint') endpointKey = key;
-  }
-
-  if (!endpointKey) {
-    addError(new Error('No endpoint span found in spans ' + JSON.stringify(spans)));
-    return;
-  }
-
-  let path: string = req.path;
-  let errors = makeSpanError();
-
-  if (returnedSpan) {
-    path = returnedSpan.path;
-    errors = returnedSpan.errors;
-  }
-
-  const endpoint = spans[endpointKey] as EndpointSpan;
-  //TODO: path appears to be '' always
-  spans[endpointKey] = makeSpan({ ...endpoint, errors, path });
-
-  mergeTrees({
-    mainTree: measurements.spans,
-    treeToAdd: spans,
-  });
-}
-
-
 export function addError(error: Error) {
   const MAX_UNIQUE_ERRORS = 5;
   measurements.debug.totalErrors++;
-  
+
   const errors = measurements.debug.errors;
   const key = error.message;
   const now = Date.now();
@@ -171,11 +133,23 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
       const endpointSnippet = `${req.method} ${routePath}`;
       const routeExists = res.statusCode === 404;
 
-      markEnd(endpointIndex, { snippet: endpointSnippet, routeExists }, { expectSpanContext: true, forceCollapse: true });
+      const path: string = req.path;
+      const errors =
+        res.statusCode >= 400 ? makeSpanError(`${res.statusCode} ${res.statusMessage}`) : undefined;
+      markEnd(
+        endpointIndex,
+        { snippet: endpointSnippet, routeExists, path, errors },
+        { expectSpanContext: true, forceCollapse: true },
+      );
       markEnd(rootIndex, {}, { expectSpanContext: true });
 
       const data = getStoredData();
-      if (data) saveEntries({ spans: data.spans, req, returnedSpan: data.returnedSpan });
+      if (data) {
+        mergeTrees({
+          mainTree: measurements.spans,
+          treeToAdd: data.spans,
+        });
+      }
     });
   });
 };

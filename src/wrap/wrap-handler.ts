@@ -12,7 +12,7 @@ type HandlerInfo = {
   subPath: string;
 };
 
-const onEnd = (markIndex: number, hasEnded: [boolean], error: any | null, hasReturned:boolean) => {
+const onEnd = (markIndex: number, hasEnded: [boolean], error: any | null, hasReturned: boolean) => {
   if (hasEnded[0]) return;
   hasEnded[0] = true;
 
@@ -50,9 +50,13 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
 
     if (args.length === 4) [err, req, res, next, ...otherArgs] = args;
     else [req, res, next, ...otherArgs] = args;
-    
-    const passesTypeCheck = res && typeof res.json === 'function' && typeof res.send === 'function'&&typeof next === 'function';
-    if (!passesTypeCheck){
+
+    const passesTypeCheck =
+      res &&
+      typeof res.json === 'function' &&
+      typeof res.send === 'function' &&
+      typeof next === 'function';
+    if (!passesTypeCheck) {
       return (handler as any)(...args);
     }
 
@@ -110,6 +114,6 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
   };
 
   Object.defineProperty(newHandler, 'length', { value: handler.length });
-  
+
   return newHandler;
 }

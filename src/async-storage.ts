@@ -5,7 +5,6 @@ import { addError } from './measurement';
 import { log } from './utils';
 
 export interface SpanStore {
-  returnedSpanKey: string | null;
   spans: Record<string, Span>;
   stack: {
     span: Span;
@@ -90,14 +89,6 @@ export function markEnd(
       );
     }
 
-    if (hasReturned) {
-      if (s.returnedSpanKey) {
-        addError(new Error(`Returned span key already set to ${s.returnedSpanKey}`));
-      } else {
-      s.returnedSpanKey = genSpanKey(s.stack.slice(0, index), s.stack[index].span);
-    }
-    }
-
     //incase of force collapsing or normal collapsing
     while (s.stack.length > index) {
       let { span, startMs } = s.stack.pop()!;
@@ -132,7 +123,7 @@ export function markEnd(
 
 export function getStoredData(
   errorIfNotEnded = true,
-): { spans: Record<string, Span>; returnedSpan: null | MiddlewareSpan | RouteSpan } | null {
+): { spans: Record<string, Span> } | null {
   try {
     const s = getStore();
     if (errorIfNotEnded && s.stack.length) {
@@ -140,24 +131,7 @@ export function getStoredData(
       return null;
     }
 
-    let returnedSpan: MiddlewareSpan | RouteSpan | null = null;
-    if (s.returnedSpanKey) {
-      const span = s.spans[s.returnedSpanKey];
-      if (!span) {
-        addError(
-          new Error(
-            `Returned span key ${s.returnedSpanKey} not found in spans ` + JSON.stringify(s.spans),
-          ),
-        );
-      } else if (span.type !== 'middleware' && span.type !== 'route') {
-        addError(new Error('Returned span type ' + span.type + ' is not middleware or route'));
-        return null;
-      } else {
-        returnedSpan = span;
-      }
-    }
-
-    return { ...s, returnedSpan };
+    return s;
   } catch (e) {
     addError(e as Error);
     return null;
@@ -165,5 +139,5 @@ export function getStoredData(
 }
 
 export function runWithStorageContext(fn: () => void) {
-  asyncStorage.run({ spans: {}, stack: [], returnedSpanKey: null }, fn);
+  asyncStorage.run({ spans: {}, stack: [] }, fn);
 }

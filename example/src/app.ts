@@ -75,4 +75,9 @@ itemsRouter.use(async function handleErrors(
   res.status(500).json({ error: 'Unexpected error:' + err.message });
 });
 
+itemsRouter.get('/exclusive-last', async (req, res) => {
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  throw new Error('my error in endpoint after error handler middleware');
+});
+
 export default app;
