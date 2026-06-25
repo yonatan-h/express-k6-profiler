@@ -123,8 +123,8 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
   );
 
   runWithStorageContext(() => {
-    const rootIndex = markStart({ type: 'root', snippet: 'root' }, {});
-    const endpointIndex = markStart({ type: 'endpoint' }, {});
+    const rootId = markStart({ type: 'root', snippet: 'root' }, {});
+    const endpointId = markStart({ type: 'endpoint' }, {});
     next();
     res.on('finish', () => {
       measurements.status.current.liveRequests--;
@@ -137,11 +137,11 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
       const errors =
         res.statusCode >= 400 ? makeSpanError(`${res.statusCode} ${res.statusMessage}`) : undefined;
       markEnd(
-        endpointIndex,
+        endpointId,
         { snippet: endpointSnippet, routeExists, path, errors },
         { expectSpanContext: true, forceCollapse: true },
       );
-      markEnd(rootIndex, {}, { expectSpanContext: true });
+      markEnd(rootId, {}, { expectSpanContext: true });
 
       const data = getStoredData();
       if (data) {

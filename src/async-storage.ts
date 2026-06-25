@@ -5,10 +5,13 @@ import { addError } from './measurement';
 import { log } from './utils';
 
 export interface SpanStore {
-  spans: Record<string, Span>;
+  rawSpans: Record<number, Span & { childIds: number[] }>;
+  nextId: number;
   stack: {
+    id: number;
     span: Span;
     startMs: number;
+    childIds: number[];
   }[];
 }
 
@@ -23,18 +26,6 @@ function getStore(): SpanStore {
   return s;
 }
 
-function genSpanKey(stack: SpanStore['stack'], span: Span): string {
-  return span.type === 'root'
-    ? rootSpanKey
-    : `${stack.map((s) => s.span.snippet).join(':')}:${span.snippet}`;
-}
-
-function printStack(stack: SpanStore['stack']) {
-  return;
-  log(stack.map((s) => s.span.snippet).join('>'));
-  log('------------');
-}
-
 //most info is filled out
 export function markStart(
   partialSpan: Partial<Span> & { type: SpanType },
@@ -46,10 +37,10 @@ export function markStart(
   if (!isUserLevel) return -1;
   try {
     const s = getStore();
-    printStack(s.stack);
+    const id = s.nextId++;
     const span = makeSpan({ ...partialSpan });
-    s.stack.push({ span, startMs: Date.now() });
-    return s.stack.length - 1;
+    s.stack.push({ id, span, startMs: Date.now(), childIds: [] });
+    return id;
   } catch (e) {
     const skip = (e as Error)?.message === NO_SPAN_CONTEXT && !expectSpanContext;
     if (!skip) {
@@ -60,56 +51,58 @@ export function markStart(
 }
 
 export function markEnd(
-  index: number,
+  id: number,
   partialSpan: Partial<Span>,
   {
     expectSpanContext = false,
     forceCollapse = false,
-    hasReturned = false,
   }: { expectSpanContext?: boolean; forceCollapse?: boolean; hasReturned?: boolean } = {},
 ) {
-  if (index === -1) {
+  if (id === -1) {
     return;
   }
   try {
     const s = getStore();
-    printStack(s.stack);
-    if (index >= s.stack.length) {
+
+    const frameIndex = s.stack.findIndex((f) => f.id === id);
+    if (frameIndex === -1) {
       return addError(
-        new Error(`Index ${index} too big for ${partialSpan?.snippet || '<unknown-span>'}`),
+        new Error(`Id ${id} not found on stack for ${partialSpan?.snippet || '<unknown-span>'}`),
       );
     }
 
-    if (!forceCollapse && index !== s.stack.length - 1) {
-      const { span } = s.stack[index]!;
+    if (!forceCollapse && frameIndex !== s.stack.length - 1) {
+      const { span } = s.stack[frameIndex]!;
       return addError(
         new Error(
-          `Index ${index} out of sync for ${span.snippet} (${span.type}). Storage Stack:\n${s.stack.map((s) => s.span.type).join('\n')}`,
+          `Id ${id} out of sync for ${span.snippet} (${span.type}). Storage Stack:\n${s.stack.map((s) => s.span.type).join('\n')}`,
         ),
       );
     }
 
-    //incase of force collapsing or normal collapsing
-    while (s.stack.length > index) {
-      let { span, startMs } = s.stack.pop()!;
+    if (frameIndex < 0) {
+      return addError(
+        new Error(`Frame index < 0, s.stack: ${s.stack.map((s) => s.span.type).join('\n')}`),
+      );
+    }
 
-      if (s.stack.length === index) {
-        span = mergeSpan({ type: span.type, newSpan: partialSpan, existingSpan: span });
-      }
-
-      const spanKey = genSpanKey(s.stack, span);
+    while (s.stack.length > frameIndex) {
+      const { id: currentId, span, startMs, childIds } = s.stack.pop()!;
+      const hasParent = s.stack.length > 0;
+      const poppedTarget = frameIndex === s.stack.length;
 
       span.totalMs = Date.now() - startMs;
       span.count = 1;
 
-      s.spans[spanKey] = mergeSpan({
-        type: span.type,
-        newSpan: span,
-        existingSpan: s.spans[spanKey],
-      });
+      if (poppedTarget) {
+        //merge info captured at start and end
+        mergeSpan({ type: span.type, newSpan: partialSpan, existingSpan: span });
+      }
+      //the entry is always new because of unique ids. no need to merge
+      s.rawSpans[currentId] = { ...span, childIds };
 
-      if (s.stack.length > 0) {
-        s.stack[s.stack.length - 1].span.spans.push(spanKey);
+      if (hasParent) {
+        s.stack[s.stack.length - 1].childIds.push(currentId);
       }
     }
   } catch (e) {
@@ -121,9 +114,36 @@ export function markEnd(
   }
 }
 
-export function getStoredData(
-  errorIfNotEnded = true,
-): { spans: Record<string, Span> } | null {
+function compileTree(
+  currentId: number,
+  parentKeyPath: string,
+  s: SpanStore,
+  finalSpans: Record<string, Span>,
+): string {
+  const rawSpan = s.rawSpans[currentId];
+  if (!rawSpan) {
+    addError(new Error(`raw span with key=${currentId}} not found`));
+    return '';
+  }
+
+  const myKey = rawSpan.type === 'root' ? rootSpanKey : `${parentKeyPath}:${rawSpan.snippet}`;
+
+  const childStringKeys = rawSpan.childIds
+    .map((childId) => compileTree(childId, myKey, s, finalSpans))
+    .filter(Boolean);
+
+  rawSpan.spans = Array.from(new Set(childStringKeys));
+
+  finalSpans[myKey] = mergeSpan({
+    type: rawSpan.type,
+    newSpan: rawSpan,
+    existingSpan: finalSpans[myKey],
+  });
+
+  return myKey;
+}
+
+export function getStoredData(errorIfNotEnded = true): { spans: Record<string, Span> } | null {
   try {
     const s = getStore();
     if (errorIfNotEnded && s.stack.length) {
@@ -131,7 +151,15 @@ export function getStoredData(
       return null;
     }
 
-    return s;
+    const finalSpans: Record<string, Span> = {};
+
+    if (s.rawSpans[0]) {
+      compileTree(0, '', s, finalSpans);
+    } else {
+      addError(new Error(`span tree has no root ${JSON.stringify(s.rawSpans)}`));
+    }
+
+    return { spans: finalSpans };
   } catch (e) {
     addError(e as Error);
     return null;
@@ -139,5 +167,5 @@ export function getStoredData(
 }
 
 export function runWithStorageContext(fn: () => void) {
-  asyncStorage.run({ spans: {}, stack: [] }, fn);
+  asyncStorage.run({ rawSpans: {}, nextId: 0, stack: [] }, fn);
 }

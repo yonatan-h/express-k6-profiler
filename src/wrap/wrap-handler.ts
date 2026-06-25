@@ -60,7 +60,7 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
       return (handler as any)(...args);
     }
 
-    let markIndex: number;
+    let markId: number;
     const hasEnded: [boolean] = [false];
 
     if (!originalJsonMap.has(res)) {
@@ -69,7 +69,7 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     res.json = (...jsonArgs: any[]) => {
       const isFirstReturn = !hasReturnedMap.get(res);
       if (isFirstReturn) hasReturnedMap.set(res, true);
-      onEnd(markIndex, hasEnded, extractError(res, jsonArgs), isFirstReturn);
+      onEnd(markId, hasEnded, extractError(res, jsonArgs), isFirstReturn);
       return originalJsonMap.get(res)!(...jsonArgs);
     };
 
@@ -79,12 +79,12 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     res.send = (...sendArgs: any[]) => {
       const isFirstReturn = !hasReturnedMap.get(res);
       if (isFirstReturn) hasReturnedMap.set(res, true);
-      onEnd(markIndex, hasEnded, extractError(res, sendArgs), isFirstReturn);
+      onEnd(markId, hasEnded, extractError(res, sendArgs), isFirstReturn);
       return originalSendMap.get(res)!(...sendArgs);
     };
 
     const newNext = (...nextArgs: any[]) => {
-      onEnd(markIndex, hasEnded, extractError(res, nextArgs), false);
+      onEnd(markId, hasEnded, extractError(res, nextArgs), false);
       return next(...nextArgs);
     };
 
@@ -97,18 +97,18 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     } else {
       snippet = `${hInfo.spanType}-${hInfo.index + 1}`;
     }
-    markIndex = markStart({ type: hInfo.spanType, snippet, path: hInfo.subPath }, {});
+    markId = markStart({ type: hInfo.spanType, snippet, path: hInfo.subPath }, {});
 
     try {
       const answer = (handler as any)(...args);
       if (answer && typeof answer.catch === 'function') {
         answer.catch((error: any) => {
-          onEnd(markIndex, hasEnded, error, true);
+          onEnd(markId, hasEnded, error, true);
         });
       }
       return answer;
     } catch (error) {
-      onEnd(markIndex, hasEnded, error, true);
+      onEnd(markId, hasEnded, error, true);
       throw error;
     }
   };
