@@ -19,7 +19,7 @@ export default function Folder({
   maxWidthPx: number;
   visibility?: boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(data.depth < 1);
+  const [isOpen, setIsOpen] = useState(false);
   const c = useGContext();
 
   const hasChildren = data.nested.length > 0;
