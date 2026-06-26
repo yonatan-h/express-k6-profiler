@@ -29,15 +29,3 @@ export default function App() {
     </GlobalContextProvider>
   );
 }
-
-function Metric({ label, value, change }: { label: string; value: string; change?: string }) {
-  return (
-    <div className="flex flex-col text-xs">
-      <span className="text-gray-500">{label}</span>
-      <span className="">{value}</span>
-
-      {change && <span className="">{change}</span>}
-    </div>
-  );
-}
-
