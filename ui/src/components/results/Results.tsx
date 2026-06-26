@@ -91,7 +91,7 @@ export default function Results() {
       {!isEmpty && c.stage !== 'listening' && (
         <>
           <h2 className="pb-6">Latency Breakdown</h2>
-          <table className="w-full border-collapse text-xs">
+          <table className=" border-collapse text-xs">
             <thead>
               <tr className="uppercase text-gray-500 text-left">
                 <th className="px-4 py-2 font-normal border-y border-gray-200">
@@ -99,9 +99,7 @@ export default function Results() {
                     <FiCode /> Code
                   </div>
                 </th>
-                <th className=" pt-2 font-normal border-y border-gray-200">
-                  <Ruler numDivisions={10} max={maxMs} maxWidthPx={maxWidthPx} />
-                </th>
+
                 <th className="px-4 py-2 font-normal border-y border-gray-200">
                   <div className="flex items-center gap-1">
                     <FiClock /> Latency

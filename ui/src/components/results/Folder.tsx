@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { extr, humanNum } from '../../../../shared/big-utils';
+import { extr, humanNum, safeDivide } from '../../../../shared/big-utils';
 import type { ESpanTableData } from '../../../../shared/types';
 import { useGContext } from '../../global-context';
 import type { ESpanTableDataExtra } from '../../ui-types';
@@ -26,10 +26,6 @@ export default function Folder({
   const errorCount = data.span.errors.count;
   const isSelected = c.selectedTableData?.spanKey === data.spanKey;
 
-  const latencyCT = extr.getChangeType(data.totalLatencyContributionMs, {
-    judge: 'less-is-better',
-    thresChange: 10,
-  });
 
   return (
     <>
@@ -67,14 +63,8 @@ export default function Folder({
           </div>
         </td>
 
-        <td className="py-1 border-y border-gray-200">
+        <td className="py-2 px-4 border-y border-gray-200 text-gray-800">
           <FolderBar change={data.avgLatencyContributionMs} maxMs={maxMs} maxWidthPx={maxWidthPx} />
-        </td>
-        <td className="py-1 px-4 border-y border-gray-200 text-gray-800 flex items-center gap-1">
-          <span>{humanNum(data.avgLatencyContributionMs.cur)}ms </span>
-          {data.avgLatencyContributionMs.hasPrev && latencyCT.type != 'neutral' && (
-            <ChangeSpan change={data.avgLatencyContributionMs} append="ms" changeType={latencyCT} />
-          )}
         </td>
 
         <td className="py-1 px-4 border-y border-gray-200 text-gray-500">{humanNum(data.totalCount.cur)}</td>
