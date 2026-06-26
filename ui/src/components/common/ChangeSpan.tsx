@@ -1,48 +1,41 @@
 import { extr, humanNum } from '../../../../shared/big-utils';
-import type { Change, ChangeType } from '../../../../shared/types';
+import type { Change } from '../../../../shared/types';
+import { FaArrowRight } from 'react-icons/fa';
 
 export default function ChangeSpan({
   change,
   changeType,
   append = '',
-
-  arrow = undefined,
-  asPercent = false,
   className = '',
-  rounded = true,
   showNew = false,
 }: {
   change: Change;
   append?: string;
   changeType: ReturnType<typeof extr.getChangeType>;
   className?: string;
-  rounded?: boolean;
-  asPercent?: boolean;
-  arrow?: string;
   showNew?: boolean;
 }) {
   if (!change.hasPrev) {
     if (showNew) return <span>new</span>;
-    else return null;
+    return <span className={`text-gray-900 text-lg ${className}`}>{humanNum(change.cur)}{append}</span>;
   }
-  if (!arrow) arrow = changeType.vertArrow;
 
-  const colorMap: Record<ChangeType, string> = {
-    neutral: 'text-gray-500',
-    better: 'text-green-700',
-    worse: 'text-red-700',
+  const colorMap: Record<string, string> = {
+    neutral: 'text-gray-400',
+    better: 'text-green-600',
+    worse: 'text-red-600',
     new: '',
   };
 
   return (
-    <span
-      className={['font-light opacity-90', className, colorMap[changeType.type], rounded && '']
-        .filter(Boolean)
-        .join(' ')}
-    >
-      {arrow}
-      {humanNum(Math.abs(asPercent ? change.changePercent : change.change))}
-      {append}
-    </span>
+    <div className={`flex items-center gap-2 ${className}`}>
+      <span className="text-gray-400 text-lg">
+        {humanNum(change.prev || 0)}{append}
+      </span>
+      <FaArrowRight className={`${colorMap[changeType.type]} text-xs`} />
+      <span className="text-gray-900 text-lg ">
+        {humanNum(change.cur)}{append}
+      </span>
+    </div>
   );
 }

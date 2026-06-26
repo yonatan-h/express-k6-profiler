@@ -11,9 +11,6 @@ import { extr, humanNum } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
 import ChangeSpan from '../common/ChangeSpan';
 import Folder from './Folder';
-import NoResultsYet from './NoResultsYet';
-import Ruler from './Ruler';
-
 
 export default function Results() {
   const c = useGContext();
@@ -22,6 +19,8 @@ export default function Results() {
   const prevResponseDatas = c.baseRecord
     ? Object.values(c.baseRecord.responseDatas || {})
     : undefined;
+  
+  const hasComparison = !!c.baseRecord;
 
   const maxMs = c.tableData?.maxAvgSpanLatencyMs || 0;
   const kpis = extr.kpiWithChanges(curResponseDatas, prevResponseDatas);
@@ -48,43 +47,76 @@ export default function Results() {
     <div className="p-3 bg-white rounded flex-1 overflow-auto border border-gray-200">
       <table className="border-collapse mb-6 text-xs">
         <thead>
-          <tr className="border-b border-gray-200">
-            <th className="px-3 py-2 text-left text-gray-600">
-              <div className="flex items-center gap-1">
-                <FiClock /> Avg latency
-              </div>
-            </th>
-            <th className="px-3 py-2 text-left text-gray-600">
-              <div className="flex items-center gap-1">
-                <FiHash /> Requests
-              </div>
-            </th>
-            <th className="px-3 py-2 text-left text-gray-600">
-              <div className="flex items-center gap-1">
-                <FiAlertTriangle /> Error rate
-              </div>
-            </th>
+          <tr className="border-b border-gray-200 text-gray-500 uppercase">
+            <th className="pl-2 pr-12 py-1 text-left font-semibold">Metric</th>
+            <th className="pl-2 pr-12 py-1 text-left font-semibold">Value</th>
+            {hasComparison && <th className="px-2 py-1 text-left font-semibold">Meaning</th>}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 text-lg">
+        <tbody className="divide-y divide-gray-200">
+          {/* Latency Row */}
           <tr>
-            <td className="px-3 py-2">
-              <span>{humanNum(latChangeType.change.cur)}ms </span>
+            <td className="pl-2 pr-12  text-gray-700">
+              <div className="flex items-center gap-2">
+                <FiClock className="text-gray-400" /> Avg latency
+              </div>
+            </td>
+            <td className="pl-2 pr-12 ">
               <ChangeSpan changeType={latChangeType} change={kpis.avgLatency} append="ms" />
             </td>
-            <td className="px-3 py-2">
-              <span>{humanNum(reqChangeType.change.cur)} </span>
+            {hasComparison && (
+              <td className="px-2  text-gray-500 italic text-xs">
+                {kpis.avgLatency.hasPrev && (
+                  latChangeType.type === 'better' ? <span>Latency improved by <span className="font-bold text-green-600">{humanNum(Math.abs(kpis.avgLatency.change))}ms</span></span> :
+                  latChangeType.type === 'worse' ? <span>Latency got worse by <span className="font-bold text-red-600">{humanNum(Math.abs(kpis.avgLatency.change))}ms</span></span> :
+                  <span>No significant change</span>
+                )}
+              </td>
+            )}
+          </tr>
+
+          {/* Requests Row */}
+          <tr>
+            <td className="pl-2 pr-12  text-gray-700">
+              <div className="flex items-center gap-2">
+                <FiHash className="text-gray-400" /> Requests
+              </div>
+            </td>
+            <td className="pl-2 pr-12 ">
               <ChangeSpan
                 changeType={reqChangeType}
                 change={kpis.totalRequests}
-                asPercent
-                append="%"
               />
             </td>
-            <td className="px-3 py-2">
-              <span>{humanNum(errChangeType.change.cur)}% </span>
+            {hasComparison && (
+              <td className="px-2  text-gray-500 italic text-xs">
+                {kpis.totalRequests.hasPrev && (
+                  reqChangeType.type === 'worse' ? 'Dramatic difference in #requests. Perhaps comparing different tests?' :
+                  'Similar traffic volume'
+                )}
+              </td>
+            )}
+          </tr>
+
+          {/* Error Rate Row */}
+          <tr>
+            <td className="pl-2 pr-12  text-gray-700">
+              <div className="flex items-center gap-2">
+                <FiAlertTriangle className="text-gray-400" /> Error rate
+              </div>
+            </td>
+            <td className="pl-2 pr-12 ">
               <ChangeSpan changeType={errChangeType} change={kpis.errorRate} append="%" />
             </td>
+            {hasComparison && (
+              <td className="px-2  text-gray-500 italic text-xs">
+                {kpis.errorRate.hasPrev && (
+                  errChangeType.type === 'better' ? <span>Error rate improved by <span className="font-bold text-green-600">{humanNum(Math.abs(kpis.errorRate.change))}%</span></span> :
+                  errChangeType.type === 'worse' ? <span>Error rate rose by <span className="font-bold text-red-600">{humanNum(Math.abs(kpis.errorRate.change))}%</span></span> :
+                  <span>No significant change</span>
+                )}
+              </td>
+            )}
           </tr>
         </tbody>
       </table>
