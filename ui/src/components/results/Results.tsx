@@ -45,7 +45,7 @@ export default function Results() {
 
   return (
     <div className="p-3 bg-white rounded flex-1 overflow-auto border border-gray-200">
-      <table className="border-collapse mb-6 text-xs">
+      <table className="border-collapse mb-12 text-xs">
         <thead>
           <tr className="border-b border-gray-200 text-gray-500 uppercase">
             <th className="pl-2 pr-12 py-1 text-left font-semibold">Metric</th>
@@ -122,7 +122,7 @@ export default function Results() {
       </table>
       {!isEmpty && c.stage !== 'listening' && (
         <>
-          <h2 className="pb-6">Latency Breakdown</h2>
+          <h2 className="pb-3 text-gray-800 font-medium">Latency Breakdown</h2>
           <table className=" border-collapse text-xs">
             <thead>
               <tr className="uppercase text-gray-500 text-left">
