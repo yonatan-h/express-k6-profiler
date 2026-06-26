@@ -9,7 +9,7 @@ export function DetailsErrors() {
   if (errors.count === 0) return null;
 
   return (
-    <div className="border-t pt-3">
+    <div className="">
       <h3 className="font-semibold text-gray-500 uppercase tracking-wider mb-2">
         Errors ({errors.count})
       </h3>
