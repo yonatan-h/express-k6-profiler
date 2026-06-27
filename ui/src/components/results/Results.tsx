@@ -28,7 +28,7 @@ export default function Results() {
           <h2 className="pb-3 text-gray-800 font-medium">Latency Breakdown</h2>
           <table className=" border-collapse text-xs">
             <thead>
-              <tr className="uppercase text-gray-500 text-left">
+              <tr className=" text-gray-500 text-left">
                 <th className="px-4 py-2 font-normal border-y border-gray-200">
                   <div className="flex items-center gap-1">
                     <FiCode /> Code
@@ -37,7 +37,7 @@ export default function Results() {
 
                 <th className="px-4 py-2 font-normal border-y border-gray-200">
                   <div className="flex items-center gap-1">
-                    <FiClock /> Latency
+                    <FiClock /> Latency Contribution
                   </div>
                 </th>
                 <th className="px-4 py-2 font-normal border-y border-gray-200">

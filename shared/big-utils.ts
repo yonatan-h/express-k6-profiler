@@ -411,8 +411,8 @@ function genSpanTableData<T>({
   );
   const totalCount = makeChange(span.count, globalArgs.prev?.spans[spanKey]?.count);
   const avgLatencyContributionMs = makeChange(
-    safeDivide(totalLatencyContributionMs.cur, totalCount.cur),
-    globalArgs.prev ? safeDivide(totalLatencyContributionMs.prev, totalCount.prev) : null,
+    safeDivide(totalLatencyContributionMs.cur, globalArgs.cur.totalRequests),
+    globalArgs.prev ? safeDivide(totalLatencyContributionMs.prev, globalArgs.prev.totalRequests) : null,
   );
   const totalErrorCount = makeChange(0, 0);
   const snippet = span.snippet;
