@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FaChevronRight } from 'react-icons/fa';
 import { extr, humanNum, safeDivide } from '../../../../shared/big-utils';
 import type { ESpanTableData } from '../../../../shared/types';
 import { useGContext } from '../../global-context';
@@ -25,7 +26,6 @@ export default function Folder({
   const hasChildren = data.nested.length > 0;
   const errorCount = data.span.errors.count;
   const isSelected = c.selectedTableData?.spanKey === data.spanKey;
-
 
   return (
     <>
@@ -67,11 +67,17 @@ export default function Folder({
           <FolderBar change={data.avgLatencyContributionMs} maxMs={maxMs} maxWidthPx={maxWidthPx} />
         </td>
 
-        <td className="py-1 px-4 border-y border-gray-200 text-gray-500">{humanNum(data.totalCount.cur)}</td>
+        <td className="py-1 px-4 border-y border-gray-200 text-gray-500">
+          {humanNum(data.totalCount.cur)}
+        </td>
         <td className="py-1 px-4 border-y border-gray-200 text-gray-500">
           {errorCount ? (
-            <span className="text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold">
+            <span
+              className="flex items-center gap-1 text-red-600 bg-red-50 border-gray-400 px-1.5  rounded "
+              title="Click to view errors in sidebar"
+            >
               {humanNum(errorCount)}
+              <FaChevronRight className="w-2 h-2 opacity-70" />
             </span>
           ) : (
             <span>-</span>
