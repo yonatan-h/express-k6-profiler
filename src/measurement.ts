@@ -134,7 +134,7 @@ export function addError(error: Error) {
 }
 
 export const measuringMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  if (req.path.includes('/__profile')) {
+  if (req.path.includes('/__profile') || req.path.startsWith('/.well-known')) {
     return next();
   }
 
