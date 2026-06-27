@@ -13,17 +13,21 @@ export function RecordingStage() {
   const recording = c.getActiveRecording();
   const recordingInfo = extr.getRecordingInfo(recording);
 
-  const barWidthPx = 4;
+  const barWidthPx = 6;
   const maxBarHeight = 16 * 1.1;
   const maxLiveReqs = 20;
 
   const duration = recordingInfo.duration;
   const liveReqs = pad(recording.extra.liveRequests, maxLiveReqs);
   const scaleHeight = safeDivide(maxBarHeight, Math.max(...liveReqs)) || 0;
+
+  const isTrafficFinished =
+    recordingInfo.totalRequests > 0 && liveReqs.slice(-3).every((r) => r === 0);
+
   return (
     <div className="w-full flex flex-col gap-3">
       <div className="flex justify-between items-center w-full">
-        <div className="flex gap-6 items-center">
+        <div className="flex gap-6 ">
           <div className="flex gap-2 items-center">
             <div>
               <div className="rounded-full p-2 bg-red-100 flex justify-center items-center border border-red-200">
@@ -31,16 +35,25 @@ export function RecordingStage() {
               </div>
             </div>
             <div className="flex flex-col justify-between">
-              <span className="flex items-center text-xs text-gray-500">Capturing K6 Traffic</span>
+              {isTrafficFinished ? (
+                <span className="flex items-center text-sm font-medium ">
+                  Traffic stopped. Ready to analyze?
+                </span>
+              ) : (
+                <span className="flex items-center text-sm text-gray-500">
+                  Capturing... Click Stop when finished
+                </span>
+              )}
 
               <span className="flex gap-px items-center ">
+                <span className="text-gray-400 uppercase mr-2 text-xs">Elapsed: </span>
                 {duration.hours > 0 && <span>{duration.hoursStr}:</span>}
                 {<span>{duration.minutesStr}</span>}:{<span>{duration.secondsStr}</span>}
               </span>
             </div>
           </div>
 
-          <div className="flex flex-col justify-between">
+          <div className="flex flex-col justify-end bg-gray-50 px-2 rounded">
             <div className="flex items-end">
               {liveReqs.map((height, i) => {
                 return (
@@ -51,24 +64,28 @@ export function RecordingStage() {
                   />
                 );
               })}
-              <div className="h-full w-1 bg-red-300"></div>
+              <div className="h-full w-px bg-gray-300" style={{ height: maxBarHeight }}></div>
             </div>
             <span className="text-gray-500 text-xs">
-              {liveReqs[liveReqs.length - 1]} Live Requests
+              {liveReqs[liveReqs.length - 1]} Requests/second
             </span>
           </div>
         </div>
 
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-4 items-center">
           <CancelButton />
           <button
             onClick={() => {
               c.stopRecording();
             }}
-            className="h-full flex gap-1 items-center hover:border-gray-100 rounded text-xs font-medium"
+            className={`flex gap-2 items-center px-4 py-1.5 rounded-md text-sm font-semibold transition-colors shadow-sm ${
+              isTrafficFinished
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-gray-800 hover:bg-gray-700 text-white'
+            }`}
           >
-            <FaStop className="text-gray-600" />
-            Stop
+            <FaStop size={12} />
+            Stop & Analyze
           </button>
         </div>
       </div>
