@@ -1,5 +1,6 @@
 import {
   rootSpanKey,
+  unmatchedEndpointPath,
   type Change,
   type ChangeType,
   type Duration,
@@ -43,7 +44,7 @@ export function makeSpan(partial: Partial<Span> & { type: SpanType }): Span {
     case 'console-log':
       return { ...base, type: 'console-log' };
     case 'endpoint':
-      return { method: 'get', path: '', routeExists: true, ...base, type: 'endpoint' };
+      return { method: 'get', path: '', ...base, type: 'endpoint' };
     default:
       throw new Error(`Invalid span type ${(partial as any).type}`);
   }
@@ -71,6 +72,10 @@ export function mergeSpan({
   existing.filePath = newSpan.filePath ?? existing.filePath;
   existing.line = newSpan.line ?? existing.line;
   existing.col = newSpan.col ?? existing.col;
+
+  if ('path' in newSpan && newSpan.path !== undefined) {
+    (existing as any).path = newSpan.path;
+  }
 
   if (newSpan.errors) {
     existing.errors.count += newSpan.errors.count;
@@ -200,18 +205,22 @@ function getMergedSpans(responseDatas: ResponseData[]) {
 }
 
 const isEndpointSpan = (s: Span) => s.type === 'endpoint';
+const isUnmatchedEndpointSpan = (s: Span) =>
+  s.type === 'endpoint' && s.snippet.includes(unmatchedEndpointPath);
+
 function getKpis(responseDatas: ResponseData[]) {
   const spans = getMergedSpans(responseDatas);
+
+  // unmatched endpoints (eg. test noise hitting non-existent routes) are excluded from the main kpis
+  const matchedEndpoints = getItems(isEndpointSpan, spans);
+
   const avgLatencyMs = safeDivide(
-    sum((s) => s.totalMs, ...getItems(isEndpointSpan, spans)),
-    sum((s) => s.count, ...getItems(isEndpointSpan, spans)),
+    sum((s) => s.totalMs, ...matchedEndpoints),
+    sum((s) => s.count, ...matchedEndpoints),
   );
 
-  //middleware or endpoint spans
-  const totalErrors = sum((s) => s.errors.count, ...getItems(isEndpointSpan, spans));
-
-  //total reqs
-  const totalRequests = sum((s) => s.count, ...getItems(isEndpointSpan, spans));
+  const totalErrors = sum((s) => s.errors.count, ...matchedEndpoints);
+  const totalRequests = sum((s) => s.count, ...matchedEndpoints);
 
   return {
     avgLatencyMs,
@@ -315,10 +324,13 @@ function mergeChildTwins(
     result[key].spans.push(primaryKey);
 
     if (!result[primaryKey]) {
-      result[primaryKey] = makeSpan(spans[primaryKey]);
+      result[primaryKey] = makeSpan({
+        ...spans[primaryKey],
+        spans: getChildrenAfterSkip(primaryKey, spans, skipSpan),
+      });
     }
 
-    // Merge duplicate siblings into the primary sibling
+    // merge duplicate siblings into the primary sibling
     for (let i = 1; i < siblingKeys.length; i++) {
       const siblingKey = siblingKeys[i];
       const sibling = makeSpan({
@@ -454,7 +466,9 @@ export const extr = {
     return {
       replicas: resDatas.length,
       cpuPercent: safeDivide(mergedStatus.cpuPercent, resDatas.length, { toPercent: true }),
-      memoryPercent: safeDivide(mergedStatus.memoryGB, mergedStatus.totalMemoryGB, { toPercent: true }),
+      memoryPercent: safeDivide(mergedStatus.memoryGB, mergedStatus.totalMemoryGB, {
+        toPercent: true,
+      }),
       reqsPerSec: safeDivide(mergedStatus.requestsPerSec, resDatas.length),
     };
   },
@@ -500,6 +514,7 @@ export const extr = {
 
     const skipSpan = (span: Span) => {
       if (span.type === 'root') return true;
+      if (span.type === 'endpoint' && span.path !== unmatchedEndpointPath) return true;
       return false;
     };
 
@@ -659,5 +674,18 @@ export const extr = {
     }
     logs.sort((l1, l2) => l2.lastTimestampMs - l1.lastTimestampMs);
     return { total, errors: logs };
+  },
+
+  getUnmatchedInfo(responseDatas: ResponseData[]): {
+    totalCount: number;
+    samplePaths: string[];
+  } {
+    const spans = getMergedSpans(responseDatas);
+    const unmatched = getItems(isUnmatchedEndpointSpan, spans);
+
+    const totalCount = sum((s) => s.count, ...unmatched);
+    const samplePaths = [...new Set(unmatched.flatMap((s) => s.errors.samples))];
+
+    return { totalCount, samplePaths };
   },
 };

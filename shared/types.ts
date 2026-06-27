@@ -24,6 +24,7 @@ export interface BaseSpan {
 }
 
 export const rootSpanKey = 'root-key';
+export const unmatchedEndpointPath = '<unmatched>';
 
 export interface RootSpan extends BaseSpan {
   type: 'root';
@@ -52,7 +53,6 @@ export interface EndpointSpan extends BaseSpan {
   type: 'endpoint';
   method: Method;
   path: string;
-  routeExists:boolean
 }
 
 export interface ConsoleLogSpan extends BaseSpan {
@@ -102,7 +102,7 @@ export interface ResponseData {
   _internal?: {
     currentSecondCount: number;
     previousSecondCount: number;
-    lastResetStamp:number;
+    lastResetStamp: number;
   };
 
   status: {
@@ -137,7 +137,7 @@ export type Change =
 //--extracted data types --//
 export interface ESpanTableData<T> {
   extra: T;
-  spanKey:string;
+  spanKey: string;
   span: Span;
   snippet: string;
   avgLatencyContributionMs: Change;
@@ -145,7 +145,7 @@ export interface ESpanTableData<T> {
   totalCount: Change;
   totalErrorCount: Change;
   nested: ESpanTableData<T>[];
-  depth:number;
+  depth: number;
 }
 
 export interface Recording<T> {

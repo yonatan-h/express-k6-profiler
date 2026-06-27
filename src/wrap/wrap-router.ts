@@ -22,7 +22,7 @@ import { log } from '../utils';
 }/
 */
 
-export function wrapRouter(router: Router, prefixPath: string) {
+export function wrapRouter(router: Router) {
   for (const layer of router.stack) {
     //says router.stack is not iterable
     if (layer.route) {
@@ -49,11 +49,10 @@ export function wrapRouter(router: Router, prefixPath: string) {
           spanType,
           index: i,
           handler,
-          subPath: prefixPath + (layer.route.path || ''),
         });
       }
     } else if (Array.isArray((layer.handle as Router).stack)) {
-      wrapRouter(layer.handle as Router, prefixPath + (layer.path || '-'));
+      wrapRouter(layer.handle as Router);
       // log("🚀 ~ wrapRouter ~ layer:", prefixPath, layer)
     } else if (typeof layer.handle === 'function') {
       //is a middleware, put as app.use probably
@@ -62,7 +61,6 @@ export function wrapRouter(router: Router, prefixPath: string) {
         spanType: 'middleware',
         index: 0,
         handler: layer.handle,
-        subPath: prefixPath,
       });
     }
   }

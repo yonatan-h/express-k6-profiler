@@ -60,7 +60,7 @@ export function profile(app: Application, options: KRayOptions = { prefix: '' })
 
   app.listen = (...args: any[]) => {
     //TODO: check if it breaks in different express versions
-    wrapRouter((app as any)._router || app.router, '');//instead of .router which is deprecated in 4 and 5
+    wrapRouter((app as any)._router || app.router);//instead of .router which is deprecated in 4 and 5
     wrapGlobals();
     wrapMongoose();
 

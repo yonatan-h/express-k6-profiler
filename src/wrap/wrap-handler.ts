@@ -9,7 +9,6 @@ type HandlerInfo = {
   spanType: SpanType;
   index: number;
   handler: RequestHandler;
-  subPath: string;
 };
 
 const onEnd = (markIndex: number, hasEnded: [boolean], error: any | null, hasReturned: boolean) => {
@@ -91,13 +90,19 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     if (args.length === 4) args[3] = newNext;
     else args[2] = newNext;
 
-    let snippet = hInfo.handler.name;
+    const finalPath = req.route?.path ? (req.baseUrl || '') + req.route.path : (req.baseUrl || '');
+
+    let snippet = handler.name;
     if (hInfo.spanType === 'route') {
-      snippet = `${req.method}:${hInfo.subPath}`;
+      snippet = `.${req.method.toLocaleLowerCase()}( ${finalPath} )`;
+    } else if (hInfo.spanType === 'middleware' && handler.name && handler.name !== 'anonymous') {
+      snippet = `${handler.name}`;
+    } else if (hInfo.spanType === 'middleware') {
+      snippet = `middleware-${hInfo.index + 1}`;
     } else {
-      snippet = `${hInfo.spanType}-${hInfo.index + 1}`;
+      addError(new Error(`unexpected case during getting handler snippet`));
     }
-    markId = markStart({ type: hInfo.spanType, snippet, path: hInfo.subPath }, {});
+    markId = markStart({ type: hInfo.spanType, snippet, path: finalPath }, {});
 
     try {
       const answer = (handler as any)(...args);

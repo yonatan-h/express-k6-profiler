@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import os from 'os';
 import { makeSpan, makeSpanError, makeStatus, mergeTrees, safeDivide } from '../shared/big-utils';
 import type { EndpointSpan, MiddlewareSpan, ResponseData, RouteSpan, Span } from '../shared/types';
+import { unmatchedEndpointPath } from '../shared/types';
 import { getStoredData, markEnd, markStart, runWithStorageContext } from './async-storage';
 import { stampSkipWrapping } from './utils';
 
@@ -45,7 +46,7 @@ export function keepCalculatingReqPerSec() {
     if (_internal) {
       _internal.previousSecondCount = _internal.currentSecondCount;
       const diff = Date.now() - _internal.lastResetStamp; //so that it stays accurate if event loop is slow
-      current.requestsPerSec = 1000* safeDivide(_internal.previousSecondCount, diff || 1000);
+      current.requestsPerSec = 1000 * safeDivide(_internal.previousSecondCount, diff || 1000);
       peak.requestsPerSec = Math.max(peak.requestsPerSec, current.requestsPerSec);
 
       _internal.currentSecondCount = 0;
@@ -146,16 +147,22 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
     const endpointId = markStart({ type: 'endpoint' }, {});
     next();
     res.on('finish', () => {
-      const routePath = req.route?.path ? req.baseUrl + req.route.path : '<unmatched>';
-      const endpointSnippet = `${req.method} ${routePath}`;
-      const routeExists = res.statusCode === 404;
+      const isUnmatched = !req.route?.path;
+      const path = isUnmatched ? unmatchedEndpointPath : req.baseUrl + req.route!.path;
+      const endpointSnippet = `${req.method} ${path}`;
 
-      const path: string = req.path;
-      const errors =
-        res.statusCode >= 400 ? makeSpanError(`${res.statusCode} ${res.statusMessage}`) : undefined;
+
+      let errors: Span['errors'] | undefined;
+      if (isUnmatched) {
+        // Store the actual path that was hit so users know what requests weren't matched
+        errors = makeSpanError(`${req.method} ${req.path}`);
+      } else if (res.statusCode >= 400) {
+        errors = makeSpanError(`${res.statusCode} ${res.statusMessage}`);
+      }
+
       markEnd(
         endpointId,
-        { snippet: endpointSnippet, routeExists, path, errors },
+        { snippet: endpointSnippet, path, errors },
         { expectSpanContext: true, forceCollapse: true },
       );
       markEnd(rootId, {}, { expectSpanContext: true });
