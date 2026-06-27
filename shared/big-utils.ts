@@ -160,7 +160,7 @@ export function getItems<T>(filterItem: (item: T) => boolean, obj: Record<string
 export function makeStatus(): Status {
   return {
     cpuPercent: 0,
-    liveRequests: 0,
+    requestsPerSec: 0,
     memoryGB: 0,
     totalMemoryGB: 0,
   };
@@ -442,25 +442,20 @@ export interface ReturnGetSpanTableData<T> {
 //directly used by react for humans and/or md generator for the agents
 export const extr = {
   getStatus(resDatas: ResponseData[]) {
-    const main = makeStatus();
-    const others = resDatas.map((r) => r.status.current);
+    const mergedStatus = makeStatus();
 
-    for (const other of others) {
-      main.cpuPercent += other.cpuPercent;
-      main.memoryGB += other.memoryGB;
-      main.totalMemoryGB += other.totalMemoryGB;
-      main.liveRequests += other.liveRequests;
+    for (const r of resDatas) {
+      mergedStatus.cpuPercent += r.status.current.cpuPercent;
+      mergedStatus.memoryGB += r.status.current.memoryGB;
+      mergedStatus.totalMemoryGB += r.status.current.totalMemoryGB;
+      mergedStatus.requestsPerSec += r.status.current.requestsPerSec;
     }
 
-    const replicas = resDatas.length;
-    const memoryPercent = safeDivide(main.memoryGB, main.totalMemoryGB, { toPercent: true });
-    const cpuPercent = round(main.cpuPercent);
-
     return {
-      liveReqs: main.liveRequests,
-      replicas,
-      cpuPercent,
-      memoryPercent,
+      replicas: resDatas.length,
+      cpuPercent: safeDivide(mergedStatus.cpuPercent, resDatas.length, { toPercent: true }),
+      memoryPercent: safeDivide(mergedStatus.memoryGB, mergedStatus.totalMemoryGB, { toPercent: true }),
+      reqsPerSec: safeDivide(mergedStatus.requestsPerSec, resDatas.length),
     };
   },
 
@@ -646,7 +641,14 @@ export const extr = {
   },
 
   getDebugErrors(responseDatas: Record<string, ResponseData>) {
-    const logs: { backendId: string; message: string; trace: string; count: number; firstTimestampMs: number; lastTimestampMs: number }[] = [];
+    const logs: {
+      backendId: string;
+      message: string;
+      trace: string;
+      count: number;
+      firstTimestampMs: number;
+      lastTimestampMs: number;
+    }[] = [];
     let total = 0;
 
     for (const [backendId, responseData] of Object.entries(responseDatas)) {

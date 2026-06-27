@@ -31,7 +31,6 @@ export function DetailsStatus() {
                 <ChangeSpan
                   change={selected.avgLatencyContributionMs}
                   append="%"
-                  asPercent
                   changeType={latencyCT}
                 />
               </span>

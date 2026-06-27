@@ -1,12 +1,12 @@
 import { FaCircle, FaStop } from 'react-icons/fa';
 import CancelButton from './CancelButton';
-import { extr, makeRecording, safeDivide } from '../../../../shared/big-utils';
+import { extr, humanNum, makeRecording, round, safeDivide } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
 import type { RecordingExtra } from '../../ui-types';
 
 const pad = (liveReqs: number[], maxLiveReqs: number): number[] => {
   const totalArr = [...Array.from({ length: maxLiveReqs }, () => 0), ...liveReqs];
-  return totalArr.slice(totalArr.length - maxLiveReqs);
+  return totalArr.slice(-maxLiveReqs);
 };
 export function RecordingStage() {
   const c = useGContext();
@@ -18,7 +18,7 @@ export function RecordingStage() {
   const maxLiveReqs = 20;
 
   const duration = recordingInfo.duration;
-  const liveReqs = pad(recording.extra.liveRequests, maxLiveReqs);
+  const liveReqs = pad(recording.extra.requestsPerSec, maxLiveReqs);
   const scaleHeight = safeDivide(maxBarHeight, Math.max(...liveReqs)) || 0;
 
   const isTrafficFinished =
@@ -67,7 +67,7 @@ export function RecordingStage() {
               <div className="h-full w-px bg-gray-300" style={{ height: maxBarHeight }}></div>
             </div>
             <span className="text-gray-500 text-xs">
-              {liveReqs[liveReqs.length - 1]} Requests/second
+              {humanNum(round(liveReqs[liveReqs.length - 1]), false)} Requests/second
             </span>
           </div>
         </div>

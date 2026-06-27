@@ -1,7 +1,7 @@
 import type { ChangeType } from '../../shared/types';
 
 export interface RecordingExtra {
-  liveRequests: number[];
+  requestsPerSec: number[];
   userHasSaved: boolean;
   isAmbient: boolean;
 }

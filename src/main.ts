@@ -1,5 +1,5 @@
 import { Application } from 'express';
-import { getMeasurements, measuringMiddleware, resetMeasurements } from './measurement';
+import { getMeasurements, measuringMiddleware, resetMeasurements, keepCalculatingReqPerSec } from './measurement';
 import path from 'path';
 import fs from 'fs/promises';
 import { wrapMongoose, wrapRouter } from './wrap/wrap';
@@ -66,6 +66,7 @@ export function profile(app: Application, options: KRayOptions = { prefix: '' })
 
     return oldListen(...args);
   };
+  keepCalculatingReqPerSec();
   log(
     `Express-k6-profiler setup complete. Please open yourbackend:port${options.prefix}/__profile`,
   );

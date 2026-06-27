@@ -70,7 +70,7 @@ export type Span =
 
 export interface Status {
   cpuPercent: number;
-  liveRequests: number;
+  requestsPerSec: number;
   memoryGB: number;
   totalMemoryGB: number;
 }
@@ -98,6 +98,12 @@ export interface DebugErrorEntry {
 export interface ResponseData {
   backendId: string;
   isProductionMode: boolean;
+
+  _internal?: {
+    currentSecondCount: number;
+    previousSecondCount: number;
+    lastResetStamp:number;
+  };
 
   status: {
     current: Status;

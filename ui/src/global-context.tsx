@@ -76,7 +76,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     return makeRecording({
       startTimeMs: new Date().getTime(),
       endTimeMs: null,
-      extra: { liveRequests: [], userHasSaved: false, isAmbient: true },
+      extra: { requestsPerSec: [], userHasSaved: false, isAmbient: true },
     });
   };
 
@@ -155,7 +155,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
     return extr.getSpanTableData(
       Object.values(curRecord.responseDatas),
       () => ({}),
-      baseRecord?.responseDatas ? Object.values(baseRecord.responseDatas) : null,
+      baseRecord?.responseDatas ? Object.values(baseRecord.responseDatas) : undefined,
     );
   };
 
@@ -188,7 +188,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
           },
           extra: {
             ...prev.extra,
-            liveRequests: [...prev.extra.liveRequests, data.status.current.liveRequests],
+            requestsPerSec: [...prev.extra.requestsPerSec, data.status.current.requestsPerSec],
           },
         });
       });
@@ -255,7 +255,7 @@ export function GlobalContextProvider({ children }: { children: React.ReactNode 
         id: new Date().getTime().toString(),
         title,
         responseDatas: {},
-        extra: { liveRequests: [], userHasSaved: false, isAmbient: false },
+        extra: { requestsPerSec: [], userHasSaved: false, isAmbient: false },
         startTimeMs: new Date().getTime(),
         endTimeMs: null,
       }),

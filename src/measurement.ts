@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import os from 'os';
-import { makeSpan, makeSpanError, makeStatus, mergeTrees } from '../shared/big-utils';
+import { makeSpan, makeSpanError, makeStatus, mergeTrees, safeDivide } from '../shared/big-utils';
 import type { EndpointSpan, MiddlewareSpan, ResponseData, RouteSpan, Span } from '../shared/types';
 import { getStoredData, markEnd, markStart, runWithStorageContext } from './async-storage';
 import { stampSkipWrapping } from './utils';
@@ -11,6 +11,11 @@ export function createMeasurements(): ResponseData {
   const data: ResponseData = {
     backendId: os.hostname(), //id has to stay the same after restarts for the same pod
     isProductionMode: process.env.NODE_ENV === 'production',
+    _internal: {
+      currentSecondCount: 0,
+      previousSecondCount: 0,
+      lastResetStamp: 0,
+    },
     status: {
       current: makeStatus(),
       peak: makeStatus(),
@@ -26,9 +31,30 @@ export function createMeasurements(): ResponseData {
 }
 
 export function resetMeasurements() {
-  const requestsAtMoment = measurements.status.current.liveRequests;
+  const reqsAtMoment = measurements.status.current.requestsPerSec;
   measurements = createMeasurements();
-  measurements.status.current.liveRequests = requestsAtMoment;
+  measurements.status.current.requestsPerSec = reqsAtMoment;
+}
+
+export function keepCalculatingReqPerSec() {
+  const timer = setInterval(() => {
+    const {
+      _internal,
+      status: { peak, current },
+    } = measurements;
+    if (_internal) {
+      _internal.previousSecondCount = _internal.currentSecondCount;
+      const diff = Date.now() - _internal.lastResetStamp; //so that it stays accurate if event loop is slow
+      current.requestsPerSec = 1000* safeDivide(_internal.previousSecondCount, diff || 1000);
+      peak.requestsPerSec = Math.max(peak.requestsPerSec, current.requestsPerSec);
+
+      _internal.currentSecondCount = 0;
+      _internal.lastResetStamp = Date.now();
+    } else {
+      addError(new Error('_internal is empty inside backend'));
+    }
+  }, 1000);
+  timer.unref();
 }
 
 async function getGeneralStatus() {
@@ -38,22 +64,17 @@ async function getGeneralStatus() {
   await new Promise((resolve) => setTimeout(resolve, 200));
 
   const { user: diffUserNano, system: diffSystemNano } = process.cpuUsage(startUsage);
-  const [diffS, diffNano] = process.hrtime(startTime);
+  const diffTimeNano = process.hrtime(startTime)[0] * 1e9 + process.hrtime(startTime)[1];
 
-  const elapsedMicros = diffS * 1_000_000 + diffNano / 1_000;
-  const cpuMicros = diffUserNano + diffSystemNano;
+  const totalUsageNano = diffUserNano + diffSystemNano;
+  const cpuPercent = (totalUsageNano / diffTimeNano) * 100;
 
-  const cpuPercent = (cpuMicros / elapsedMicros) * 100;
+  const totalMemoryBytes = os.totalmem();
+  const freeMemoryBytes = os.freemem();
+  const memoryGB = (totalMemoryBytes - freeMemoryBytes) / (1024 * 1024 * 1024);
+  const totalMemoryGB = totalMemoryBytes / (1024 * 1024 * 1024);
 
-  const unusedBytes = os.freemem();
-  const totalBytes = os.totalmem();
-  const usedBytes = totalBytes - unusedBytes;
-
-  return {
-    cpuPercent: Number(cpuPercent.toFixed(2)),
-    memoryGB: Number((usedBytes / 1024 ** 3).toFixed(2)),
-    totalMemoryGB: Number((totalBytes / 1024 ** 3).toFixed(2)),
-  };
+  return { cpuPercent, memoryGB, totalMemoryGB };
 }
 
 export async function getMeasurements() {
@@ -67,7 +88,7 @@ export async function getMeasurements() {
   peak.memoryGB = Math.max(peak.memoryGB, memoryGB);
   peak.totalMemoryGB = Math.max(peak.totalMemoryGB, totalMemoryGB);
 
-  return measurements;
+  return { ...measurements, _internal: null };
 }
 
 export function addError(error: Error) {
@@ -116,19 +137,15 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
     return next();
   }
 
-  measurements.status.current.liveRequests++;
-  measurements.status.peak.liveRequests = Math.max(
-    measurements.status.peak.liveRequests,
-    measurements.status.current.liveRequests,
-  );
+  if (measurements._internal) {
+    measurements._internal.currentSecondCount++;
+  }
 
   runWithStorageContext(() => {
     const rootId = markStart({ type: 'root', snippet: 'root' }, {});
     const endpointId = markStart({ type: 'endpoint' }, {});
     next();
     res.on('finish', () => {
-      measurements.status.current.liveRequests--;
-
       const routePath = req.route?.path ? req.baseUrl + req.route.path : '<unmatched>';
       const endpointSnippet = `${req.method} ${routePath}`;
       const routeExists = res.statusCode === 404;
