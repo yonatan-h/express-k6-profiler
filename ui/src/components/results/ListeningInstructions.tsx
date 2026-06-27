@@ -18,7 +18,7 @@ export default function ListeningInstructions() {
   };
 
   return (
-    <div className="py-6 px-3 flex flex-col gap-8">
+    <div className="pt-6 flex flex-col gap-8">
       <div className="flex gap-4">
         <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-semibold text-sm ">
           1

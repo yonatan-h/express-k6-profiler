@@ -3,10 +3,10 @@ import CancelButton from './CancelButton';
 
 export default function ListeningStage() {
   return (
-    <div className="w-full flex justify-between items-center">
-      <div className="flex gap-2 items-center">
-        <FaCircle className="w-2 text-red-600 animate-pulse" />
-        <span className="font-semibold text-gray-800">Capturing Traffic...</span>
+    <div className="flex h-full py-1 justify-between w-full">
+      <div className="flex-1 flex gap-2 items-center text-sm px-4">
+        <FaCircle className="text-red-500 w-3 h-3 animate-pulse" />
+        <span className="font-semibold text-gray-800">Waiting for Traffic...</span>
       </div>
       <CancelButton />
     </div>
