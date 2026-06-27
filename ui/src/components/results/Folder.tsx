@@ -38,15 +38,19 @@ export default function Folder({
           setIsOpen(!isSelected);
         }}
       >
+        {/* code */}
         <td className={`border-y border-gray-200 pl-2 `}>
-          <div className="flex items-center gap-1 py-1">
+          <div className="flex items-stretch gap-1 h-full">
             {Array.from({ length: data.depth + 1 }).map((_, i) => {
-              if (!hasChildren || i !== data.depth) return <FolderPad key={i} dir="line" />;
+              const isLeaf = i === data.depth;
+              if (!hasChildren && isLeaf && data.depth === 0) return <FolderPad key={i} dir='dot' />;
+              if (!hasChildren && isLeaf && data.depth !== 0) return <FolderPad key={i} dir='line' />;
+              if (!isLeaf) return <FolderPad key={i} dir="line" />;
               return (
                 <button
                   key={i}
                   type="button"
-                  className="hover:bg-blue-100 rounded p-0.5 flex items-center justify-center transition-colors focus:outline-none"
+                  className="hover:bg-blue-100 rounded flex justify-center items-center transition-colors focus:outline-none"
                   onClick={(e) => {
                     e.stopPropagation();
                     setIsOpen(!isOpen);
@@ -63,13 +67,17 @@ export default function Folder({
           </div>
         </td>
 
-        <td className="py-2 px-4 border-y border-gray-200 text-gray-800">
+        {/* latency bar */}
+        <td className="py-1.5 px-4 border-y border-gray-200 text-gray-800">
           <FolderBar change={data.avgLatencyContributionMs} maxMs={maxMs} maxWidthPx={maxWidthPx} />
         </td>
 
+        {/* count */}
         <td className="py-1 px-4 border-y border-gray-200 text-gray-500">
           {humanNum(data.totalCount.cur)}
         </td>
+
+        {/* errors */}
         <td className="py-1 px-4 border-y border-gray-200 text-gray-500">
           {errorCount ? (
             <span
