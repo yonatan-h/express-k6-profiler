@@ -42,12 +42,12 @@ export default function KpiTable() {
       <tbody className="divide-y divide-gray-200">
         {/* Latency Row */}
         <tr>
-          <td className="pl-2 pr-12  text-gray-700">
+          <td className="pl-2 pr-12 py-2  text-gray-700">
             <div className="flex items-center gap-2">
               <FiClock className="text-gray-400" /> Avg latency
             </div>
           </td>
-          <td className="pl-2 pr-12 ">
+          <td className="pl-2 pr-12">
             <ChangeSpan changeType={latChangeType} change={kpis.avgLatency} append="ms" />
           </td>
           {hasComparison && (
@@ -77,7 +77,7 @@ export default function KpiTable() {
         {/* Requests Row */}
         <tr>
           <td className="pl-2 pr-12  text-gray-700">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 py-2">
               <FiHash className="text-gray-400" /> Requests
             </div>
           </td>
@@ -96,7 +96,7 @@ export default function KpiTable() {
 
         {/* Error Rate Row */}
         <tr>
-          <td className="pl-2 pr-12  text-gray-700">
+          <td className="pl-2 pr-12  text-gray-700 py-2">
             <div className="flex items-center gap-2">
               <FiAlertTriangle className="text-gray-400" /> Error rate
             </div>

@@ -18,7 +18,7 @@ export default function ChangeSpan({
   if (!change.hasPrev) {
     if (showNew) return <span>new</span>;
     return (
-      <span className="font-bold">
+      <span className="text-lg">
         {humanNum(change.cur)}
         {append}
       </span>
