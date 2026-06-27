@@ -34,7 +34,7 @@ export default function DropDown({ type }: { type: 'cur' | 'base' }) {
       <button
         disabled={type === 'base' && c.curRecord?.extra.isAmbient}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 rounded border border-gray-400 px-3 py-1  text-sm bg-white disabled:text-gray-500 disabled:opacity-50"
+        className={`flex items-center gap-2 rounded border ${type === 'base' ? 'border-gray-200' : 'border-gray-400 border-2'} px-3 py-1  text-sm bg-white disabled:text-gray-500 disabled:opacity-50`}
       >
         <div className="text-xs">
           <div>
