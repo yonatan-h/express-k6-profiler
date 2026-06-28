@@ -17,7 +17,7 @@ export default function App() {
           <TopSummary />
 
           <div className="flex-1 flex gap-3 min-h-0">
-            <div className="flex-3 flex flex-col gap-3 min-h-0">
+            <div className="flex-1 flex flex-col gap-3 min-h-0">
               <Results />
             </div>
 

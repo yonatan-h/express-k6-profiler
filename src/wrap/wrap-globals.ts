@@ -7,11 +7,14 @@ export function wrapGlobals() {
   const oldLog = console.log.bind(console);
   global.console.log = (...args: any[]) => {
     const error = new Error();
-    const { line, filePath, isUserLevel, snippet } = getCodeInfo(error, {
+    const { line, filePath, code, isUserLevel, snippet } = getCodeInfo(error, {
       methodName: 'console.log',
       args,
     });
-    let spanIndex = markStart({ type: 'console-log', snippet, filePath, line }, { isUserLevel });
+    let spanIndex = markStart(
+      { type: 'console-log', code, snippet, filePath, line },
+      { isUserLevel },
+    );
     try {
       const res = oldLog(...args);
       //TODO: manually pass end time for more accuracy
@@ -26,18 +29,20 @@ export function wrapGlobals() {
   const oldPromiseAll = Promise.all.bind(Promise);
   global.Promise.all = (values: any[]) => {
     const error = new Error();
-    const { line, snippet, filePath, callerName, isUserLevel } = getCodeInfo(error, {
+    const { line, snippet, filePath, code, isUserLevel } = getCodeInfo(error, {
       methodName: 'Promise.all',
       args: values,
     });
-    let spanIndex = markStart({ type: 'promise-all', snippet, line, filePath }, { isUserLevel });
+    let spanIndex = markStart(
+      { type: 'promise-all', snippet, code, line, filePath },
+      { isUserLevel },
+    );
     const res = oldPromiseAll(values);
 
     let caughtError: any;
     res.catch((e) => (caughtError = e));
 
     res.finally(() => {
-      const snippet = `${callerName} → Promise.all(${values.length} args)`;
       markEnd(spanIndex, {
         snippet,
         line,

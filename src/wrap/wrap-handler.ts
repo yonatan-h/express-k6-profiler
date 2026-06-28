@@ -102,7 +102,11 @@ export function wrapHandler(handler: RequestHandler, hInfo: HandlerInfo): Reques
     } else {
       addError(new Error(`unexpected case during getting handler snippet`));
     }
-    markId = markStart({ type: hInfo.spanType, snippet, path: finalPath }, {});
+    let code = handler.toString();
+    if (code.length > 300) {
+      code = code.substring(0, 300) + '...';
+    }
+    markId = markStart({ type: hInfo.spanType, snippet, path: finalPath, code }, {});
 
     try {
       const answer = (handler as any)(...args);

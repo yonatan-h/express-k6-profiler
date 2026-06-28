@@ -17,7 +17,7 @@ export function DetailsHeader() {
           {snippet}
         </span>
         <span className="text-gray-500 lowercase italic">
-          ({spanType})
+          {spanType}
         </span>
       </div>
       <button 

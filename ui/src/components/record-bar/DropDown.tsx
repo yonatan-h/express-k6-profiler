@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { IoMdArrowDropdown } from 'react-icons/io';
+import { IoMdArrowDropdown, IoMdClose } from 'react-icons/io';
 import { extr, humanNum } from '../../../../shared/big-utils';
 import { useGContext } from '../../global-context';
 import StartCaptureButton from './StartCaptureButton';
@@ -110,7 +110,19 @@ export default function DropDown({ type }: { type: 'cur' | 'base' }) {
                 }}
               >
                 <div className="flex items-center justify-between">
-                  <div>{recording.title}</div>
+                  <div className="flex items-center gap-2">
+                    {recording.title}
+                    <button
+                      className="p-1 hover:bg-gray-200 hover:text-red-600 rounded transition-colors text-gray-400"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        c.deleteRecord(recording.id);
+                      }}
+                      title="Delete recording"
+                    >
+                      <IoMdClose />
+                    </button>
+                  </div>
 
                   <div className=" text-gray-500">
                     {info.ago.days > 0 && ` ${info.duration.daysStr}d`}

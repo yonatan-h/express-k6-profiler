@@ -51,6 +51,7 @@ app.post('/api/users', async (req, res) => {
   const password = `example`;
   console.log('creating', { name, email, password });
   await UserModel.create({ name, email, password });
+  type a = string; //comment next to typescript type
   res.status(201).json({ message: 'user created' });
 });
 

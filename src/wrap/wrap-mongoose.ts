@@ -47,11 +47,11 @@ function wrapMethod(
 
   const newMethod = (...args: any[]) => {
     const error = new Error();
-    const { line, filePath, snippet, isUserLevel } = getCodeInfo(error, {
+    const { line, filePath, snippet, isUserLevel, code } = getCodeInfo(error, {
       methodName: `${MyModel.modelName}.${methodName}`,
       args,
     });
-    const startIndex = markStart({ type: 'db', line, filePath, snippet }, { isUserLevel });
+    const startIndex = markStart({ type: 'db', line, filePath, snippet, code }, { isUserLevel });
 
     const result: Promise<unknown> | Query<unknown, unknown> = method(...args);
     if ('exec' in result) {
@@ -68,18 +68,14 @@ function wrapMethod(
 function wrapQuery(query: Query<unknown, unknown>, startIndex: number) {
   const oldThen = query.then.bind(query);
 
-  const measure = () => {
-    markEnd(startIndex, {}, {});
-  };
-
   const newThen: typeof query.then = (onRes?: any, onRej?: any) => {
     const newRes = (val: any) => {
-      measure();
+      markEnd(startIndex, {}, {});
       if (onRes && typeof onRes === 'function') return onRes(val);
     };
 
     const newRej = (val: any) => {
-      measure();
+      markEnd(startIndex, {}, {});
       if (onRej && typeof onRej === 'function') return onRej(val);
     };
 

@@ -15,6 +15,39 @@ export function safeImport(importString: string): unknown | null {
   }
 }
 
+function stringifyArg(arg: unknown, depth = 0): string {
+  const maxDepth = 0;
+  if (arg === null) return 'null';
+  if (arg === undefined) return 'undefined';
+  if (typeof arg === 'string') return `'${arg}'`;
+  if (typeof arg === 'function') return `() => { ... }`;
+  if (typeof arg === 'object') {
+    if ('then' in arg && typeof arg.then === 'function') return `Promise`;
+    if (arg instanceof Date) return `Date(${arg.toISOString()})`;
+    if (arg instanceof RegExp) return String(arg);
+
+    if (Array.isArray(arg)) {
+      const maxShowCount = 3;
+      if (depth > maxDepth) return `[...]`;
+      const items = arg.slice(0, maxShowCount).map((a) => stringifyArg(a, depth + 1));
+      return `[${items.join(', ')}${arg.length > maxShowCount ? ', ...' : ''}]`;
+    }
+
+    if (depth > maxDepth) return `{...}`;
+    try {
+      const keys = Object.keys(arg);
+      if (keys.length === 0) return '{}';
+      const props = keys
+        .slice(0, 3)
+        .map((k) => `${k}: ${stringifyArg((arg as Record<string, any>)[k], depth + 1)}`);
+      return `{ ${props.join(', ')}${keys.length > 3 ? ', ...' : ''} }`;
+    } catch {
+      return '{...}';
+    }
+  }
+  return String(arg);
+}
+
 //error should directly in the wrapper function where oldFunction() is called
 export function getCodeInfo(
   error: Error,
@@ -29,6 +62,7 @@ export function getCodeInfo(
   callerName: string;
   isUserLevel: boolean;
   snippet: string;
+  code: string;
 } {
   //example of error.stack
   //   at Promise.global.Promise.all (C:\Users\abebe\src\wrap\wrap-globals.ts:28:19)
@@ -63,14 +97,21 @@ export function getCodeInfo(
         `isUserLevel${isUserLevel} \t frame: ${frame.methodName}\t file: ${frame.file}:${frame.lineNumber}`,
       );
     }
-    const callerName = frame.methodName === '<unknown>' ? '' : frame.methodName;
-    const snippet = `${callerName}${callerName ? ' → ' : ''}${methodName}(${args.length > 0 ? `${args.length} args` : ''})`;
+    const snippet = `${methodName}(${args.length > 0 ? `${args.length} args` : ''})`;
+    const argsStr = args.map((a) => stringifyArg(a, 0)).join(', ');
+    const callerName = frame.methodName && frame.methodName !== '<unknown>' ? frame.methodName : '';
+    let prefix = '';
+    if (callerName) prefix += `// Inside ${callerName}\n`;
+    prefix += '// note: approximated\n';
+    const code = `${prefix} ${methodName}(${argsStr});`;
+
     return {
       filePath: frame.file || '',
       snippet,
       line: frame.lineNumber || -1,
-      callerName: '',
+      callerName,
       isUserLevel,
+      code,
     };
   }
 
@@ -80,6 +121,7 @@ export function getCodeInfo(
     callerName: '',
     isUserLevel: false,
     snippet: `${methodName}(${args.length > 0 ? `${args.length} args` : ''})`,
+    code: '',
   };
 }
 
