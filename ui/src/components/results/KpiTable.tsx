@@ -133,8 +133,9 @@ export default function KpiTable() {
           )}
         </tr>
 
+        {/* TODO: add back when we have correct calculation */}
         {/* Event Loop Lag Row */}
-        <tr>
+        {/* <tr>
           <td className="pl-2 pr-12  text-gray-700 py-2">
             <div className="flex items-center gap-2">
               <FiClock className="text-gray-400" /> Event loop lag
@@ -165,7 +166,7 @@ export default function KpiTable() {
                 ))}
             </td>
           )}
-        </tr>
+        </tr> */}
       </tbody>
     </table>
   );

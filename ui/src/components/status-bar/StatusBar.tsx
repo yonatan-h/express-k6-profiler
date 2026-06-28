@@ -23,6 +23,10 @@ export function StatusBar() {
         <span>
           {info.memoryPercent}% {info.replicas > 1 ? 'Avg ' : ''}RAM
         </span>
+
+        <span title='Event Loop Delay (NodeJS)' className='cursor-help'>
+          {humanNum(info.eventLoopLagMs)}ms {info.replicas > 1 ? 'Avg ' : ''}ELD
+        </span>
       </div>
     </div>
   );
