@@ -20,7 +20,7 @@ export function ResultStage() {
             <div className="flex gap-3 items-center justify-center">
               <DropDown type="cur" />
 
-              {(c.baseRecord || showCompare) && (
+              {!c.curRecord?.extra?.isAmbient && (c.baseRecord || showCompare) && (
                 <>
                   <span className="text-xs text-gray-500 bg-white rounded-full">vs</span>
                   <div className="flex gap-1">
@@ -38,7 +38,7 @@ export function ResultStage() {
                   </div>
                 </>
               )}
-              {!c.baseRecord && !showCompare && c.recordings.length > 1 && (
+              {!c.curRecord?.extra?.isAmbient && !c.baseRecord && !showCompare && c.recordings.length > 1 && (
                 <button
                   className="text-xs text-gray-500 hover:text-gray-700 underline px-2 py-1"
                   onClick={() => setShowCompare(true)}

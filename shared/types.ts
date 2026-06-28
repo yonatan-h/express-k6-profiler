@@ -73,6 +73,7 @@ export interface Status {
   requestsPerSec: number;
   memoryGB: number;
   totalMemoryGB: number;
+  eventLoopLagMs: number;
 }
 
 //span tree roughly expected to have
@@ -98,12 +99,6 @@ export interface DebugErrorEntry {
 export interface ResponseData {
   backendId: string;
   isProductionMode: boolean;
-
-  _internal?: {
-    currentSecondCount: number;
-    previousSecondCount: number;
-    lastResetStamp: number;
-  };
 
   status: {
     current: Status;

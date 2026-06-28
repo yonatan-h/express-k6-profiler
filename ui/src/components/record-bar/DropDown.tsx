@@ -29,6 +29,8 @@ export default function DropDown({ type }: { type: 'cur' | 'base' }) {
     record = c.baseRecord;
   }
 
+  const idleInfo = extr.getRecordingInfo(c.getActiveRecording());
+
   return (
     <div ref={dropdownRef} className="relative">
       <button
@@ -50,8 +52,8 @@ export default function DropDown({ type }: { type: 'cur' | 'base' }) {
       </button>
 
       {isOpen && (
-        <div className="absolute mt-2 rounded shadow-md border border-gray-400 bg-white min-w-[300px] z-50">
-          <p className="p-3 text-sm">
+        <div className="absolute mt-2 rounded  border border-gray-400 bg-white min-w-[400px] z-50 flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+          <p className="px-3 pt-3 text-sm">
             Select
             {type === 'cur' && <span> Current</span>}
             {type === 'base' && <span> Baseline</span>}
@@ -60,7 +62,7 @@ export default function DropDown({ type }: { type: 'cur' | 'base' }) {
 
           {type === 'base' && (
             <button
-              className="w-full text-start rounded px-3 py-1 border border-transparent hover:border-gray-300 transition-colors text-gray-500 italic"
+              className="w-full text-start rounded px-3 py-1 border border-transparent text-gray-500 italic"
               onClick={() => {
                 c.setBaseRecord(null);
                 setIsOpen(false);
@@ -72,23 +74,25 @@ export default function DropDown({ type }: { type: 'cur' | 'base' }) {
 
           {type === 'cur' && c.getActiveRecording().extra.isAmbient && (
             <button
-              className="w-full text-start rounded px-3 py-1 text-gray-500 italic"
+              className="w-full text-start rounded px-3 py-1 text-gray-500"
               onClick={() => {
                 c.setCurRecord(c.getActiveRecording().id);
                 setIsOpen(false);
               }}
             >
-              <span>Idle Capture</span>
+              <span className="italic">Idle Capture</span>
 
               <div className="flex gap-1 text-xs text-gray-500">
-                <span>{extr.getRecordingInfo(c.getActiveRecording()).totalRequests} Captured</span>{' '}
-                |
+                <div className="flex items-center gap-1 font-bold">
+                  <span>Live</span>
+                </div>
+                |<span>{idleInfo.totalRequests} Requests</span> |
                 <span>
                   {humanNum(
-                    extr.kpiWithChanges(Object.values(c.getActiveRecording().responseDatas))
-                      .avgLatency.cur,
+                    extr.kpiWithChanges(Object.values(idleInfo.recording.responseDatas)).avgLatency
+                      .cur,
                   )}
-                  ms
+                  ms Latency
                 </span>
               </div>
             </button>
@@ -110,43 +114,42 @@ export default function DropDown({ type }: { type: 'cur' | 'base' }) {
                 }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {recording.title}
-                    <button
-                      className="p-1 hover:bg-gray-200 hover:text-red-600 rounded transition-colors text-gray-400"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        c.deleteRecord(recording.id);
-                      }}
-                      title="Delete recording"
-                    >
-                      <IoMdClose />
-                    </button>
-                  </div>
+                  <div className="flex items-center gap-2">{recording.title}</div>
 
-                  <div className=" text-gray-500">
-                    {info.ago.days > 0 && ` ${info.duration.daysStr}d`}
-                    {info.ago.days <= 0 && info.ago.hours > 0 && ` ${info.duration.hours}h`}
-                    {info.ago.days <= 0 && ` ${info.duration.minutes}m`}
-                    <span> ago</span>
-                  </div>
+                  <button
+                    className="p-1 hover:bg-gray-200 hover:text-red-600 rounded transition-colors text-gray-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      c.deleteRecord(recording.id);
+                    }}
+                    title="Delete recording"
+                  >
+                    <IoMdClose />
+                  </button>
                 </div>
 
                 <div className="flex gap-1 text-xs text-gray-500">
-                  <span>{info.totalRequests} Captured</span> |
+                  <div className="flex items-center gap-1 font-bold">
+                    {info.ago.days > 0 && ` ${info.ago.daysStr}d`}
+                    {info.ago.days <= 0 && info.ago.hours > 0 && ` ${info.ago.hours}h`}
+                    {info.ago.days <= 0 && ` ${info.ago.minutes}m`}
+                    <span> ago</span>
+                  </div>{' '}
+                  |
                   <span>
                     {humanNum(
                       extr.kpiWithChanges(Object.values(recording.responseDatas)).avgLatency.cur,
                     )}
-                    ms
+                    ms Latency
                   </span>
+                  |<span>{info.totalRequests} Requests</span>
                 </div>
               </button>
             );
           })}
 
           <hr className="border-gray-200" />
-          <div className="px-2 pt-2 pb-2">
+          <div className="px-2 pb-3">
             <StartCaptureButton text="Capture New" primary={false} />
           </div>
         </div>

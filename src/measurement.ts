@@ -1,21 +1,39 @@
 import { NextFunction, Request, Response } from 'express';
 import os from 'os';
+import { IntervalHistogram, monitorEventLoopDelay } from 'perf_hooks';
 import { makeSpan, makeSpanError, makeStatus, mergeTrees, safeDivide } from '../shared/big-utils';
 import type { EndpointSpan, MiddlewareSpan, ResponseData, RouteSpan, Span } from '../shared/types';
 import { unmatchedEndpointPath } from '../shared/types';
 import { getStoredData, markEnd, markStart, runWithStorageContext } from './async-storage';
 import { stampSkipWrapping } from './utils';
 
-let measurements: ResponseData = createMeasurements();
+type State = ResponseData & {
+  _internal: {
+    currentSecondCount: number;
+    previousSecondCount: number;
+    lastResetStamp: number;
+    eldHistogram: IntervalHistogram;
+  };
+};
 
-export function createMeasurements(): ResponseData {
-  const data: ResponseData = {
+let measurements: State = createMeasurements();
+
+export function createMeasurements({
+  eldHistogram,
+}: { eldHistogram?: IntervalHistogram } = {}): State {
+  if (!eldHistogram) {
+    eldHistogram = monitorEventLoopDelay({ resolution: 10 });
+    eldHistogram.enable();
+  }
+
+  const data: State = {
     backendId: os.hostname(), //id has to stay the same after restarts for the same pod
     isProductionMode: process.env.NODE_ENV === 'production',
     _internal: {
       currentSecondCount: 0,
       previousSecondCount: 0,
       lastResetStamp: 0,
+      eldHistogram,
     },
     status: {
       current: makeStatus(),
@@ -32,9 +50,7 @@ export function createMeasurements(): ResponseData {
 }
 
 export function resetMeasurements() {
-  const reqsAtMoment = measurements.status.current.requestsPerSec;
-  measurements = createMeasurements();
-  measurements.status.current.requestsPerSec = reqsAtMoment;
+  measurements = createMeasurements({ eldHistogram: measurements._internal.eldHistogram });
 }
 
 export function keepCalculatingReqPerSec() {
@@ -75,19 +91,24 @@ async function getGeneralStatus() {
   const memoryGB = (totalMemoryBytes - freeMemoryBytes) / (1024 * 1024 * 1024);
   const totalMemoryGB = totalMemoryBytes / (1024 * 1024 * 1024);
 
-  return { cpuPercent, memoryGB, totalMemoryGB };
+  const eventLoopLagMs = measurements._internal.eldHistogram.mean / 1e6;
+  measurements._internal.eldHistogram.reset();
+
+  return { cpuPercent, memoryGB, totalMemoryGB, eventLoopLagMs };
 }
 
 export async function getMeasurements() {
-  const { cpuPercent, memoryGB, totalMemoryGB } = await getGeneralStatus();
+  const { cpuPercent, memoryGB, totalMemoryGB, eventLoopLagMs } = await getGeneralStatus();
   const { peak, current } = measurements.status;
   current.cpuPercent = cpuPercent;
   current.memoryGB = memoryGB;
   current.totalMemoryGB = totalMemoryGB;
+  current.eventLoopLagMs = eventLoopLagMs;
 
   peak.cpuPercent = Math.max(peak.cpuPercent, cpuPercent);
   peak.memoryGB = Math.max(peak.memoryGB, memoryGB);
   peak.totalMemoryGB = Math.max(peak.totalMemoryGB, totalMemoryGB);
+  peak.eventLoopLagMs = Math.max(peak.eventLoopLagMs, eventLoopLagMs);
 
   return { ...measurements, _internal: null };
 }
@@ -150,7 +171,6 @@ export const measuringMiddleware = (req: Request, res: Response, next: NextFunct
       const isUnmatched = !req.route?.path;
       const path = isUnmatched ? unmatchedEndpointPath : req.baseUrl + req.route!.path;
       const endpointSnippet = `${req.method} ${path}`;
-
 
       let errors: Span['errors'] | undefined;
       if (isUnmatched) {

@@ -17,7 +17,7 @@ export default function KpiTable() {
 
   const latChangeType = extr.getChangeType(kpis.avgLatency, {
     judge: 'less-is-better',
-    thresPercent: 5,
+    thresChange: 5,
   });
 
   const reqChangeType = extr.getChangeType(kpis.totalRequests, {
@@ -27,7 +27,12 @@ export default function KpiTable() {
 
   const errChangeType = extr.getChangeType(kpis.errorRate, {
     judge: 'less-is-better',
-    thresPercent: 5,
+    thresChange: 5,
+  });
+
+  const lagChangeType = extr.getChangeType(kpis.eventLoopLag, {
+    judge: 'less-is-better',
+    thresChange: 5,
   });
 
   return (
@@ -119,6 +124,40 @@ export default function KpiTable() {
                     Error rate rose by{' '}
                     <span className="font-bold text-red-600">
                       {humanNum(Math.abs(kpis.errorRate.change))}%
+                    </span>
+                  </span>
+                ) : (
+                  <span>No significant change</span>
+                ))}
+            </td>
+          )}
+        </tr>
+
+        {/* Event Loop Lag Row */}
+        <tr>
+          <td className="pl-2 pr-12  text-gray-700 py-2">
+            <div className="flex items-center gap-2">
+              <FiClock className="text-gray-400" /> Event loop lag
+            </div>
+          </td>
+          <td className="pl-2 pr-12 ">
+            <ChangeSpan changeType={lagChangeType} change={kpis.eventLoopLag} append="ms" />
+          </td>
+          {hasComparison && (
+            <td className="px-2  text-gray-500 italic text-xs">
+              {kpis.eventLoopLag.hasPrev &&
+                (lagChangeType.type === 'better' ? (
+                  <span>
+                    Lag improved by{' '}
+                    <span className="font-bold text-green-600">
+                      {humanNum(Math.abs(kpis.eventLoopLag.change))}ms
+                    </span>
+                  </span>
+                ) : lagChangeType.type === 'worse' ? (
+                  <span>
+                    Lag got worse by{' '}
+                    <span className="font-bold text-red-600">
+                      {humanNum(Math.abs(kpis.eventLoopLag.change))}ms
                     </span>
                   </span>
                 ) : (

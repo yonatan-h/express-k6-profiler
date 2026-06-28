@@ -168,6 +168,7 @@ export function makeStatus(): Status {
     requestsPerSec: 0,
     memoryGB: 0,
     totalMemoryGB: 0,
+    eventLoopLagMs: 0,
   };
 }
 
@@ -222,10 +223,16 @@ function getKpis(responseDatas: ResponseData[]) {
   const totalErrors = sum((s) => s.errors.count, ...matchedEndpoints);
   const totalRequests = sum((s) => s.count, ...matchedEndpoints);
 
+  const eventLoopLagMs = safeDivide(
+    sum((r) => r.status.current.eventLoopLagMs, ...responseDatas),
+    responseDatas.length,
+  );
+
   return {
     avgLatencyMs,
     errorRate: safeDivide(totalErrors, totalRequests, { toPercent: true }),
     totalRequests,
+    eventLoopLagMs,
   };
 }
 
@@ -461,6 +468,7 @@ export const extr = {
       mergedStatus.memoryGB += r.status.current.memoryGB;
       mergedStatus.totalMemoryGB += r.status.current.totalMemoryGB;
       mergedStatus.requestsPerSec += r.status.current.requestsPerSec;
+      mergedStatus.eventLoopLagMs += r.status.current.eventLoopLagMs;
     }
 
     return {
@@ -470,6 +478,7 @@ export const extr = {
         toPercent: true,
       }),
       reqsPerSec: safeDivide(mergedStatus.requestsPerSec, resDatas.length),
+      eventLoopLagMs: safeDivide(mergedStatus.eventLoopLagMs, resDatas.length),
     };
   },
 
@@ -481,6 +490,7 @@ export const extr = {
       main.cpuPercent = Math.max(main.cpuPercent, other.cpuPercent);
       main.memoryGB = Math.max(main.memoryGB, other.memoryGB);
       main.totalMemoryGB = Math.max(main.totalMemoryGB, other.totalMemoryGB);
+      main.eventLoopLagMs = Math.max(main.eventLoopLagMs, other.eventLoopLagMs);
     }
     return main;
   },
@@ -493,6 +503,7 @@ export const extr = {
       avgLatency: makeChange(curKpis.avgLatencyMs, prevKpis?.avgLatencyMs),
       errorRate: makeChange(curKpis.errorRate, prevKpis?.errorRate),
       totalRequests: makeChange(curKpis.totalRequests, prevKpis?.totalRequests),
+      eventLoopLag: makeChange(curKpis.eventLoopLagMs, prevKpis?.eventLoopLagMs),
     };
 
     return kpisWithChanges;

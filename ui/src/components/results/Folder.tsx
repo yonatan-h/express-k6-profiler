@@ -61,7 +61,7 @@ export default function Folder({
               );
             })}
 
-            <span className="py-0.5 flex gap-1 items-center select-none">
+            <span className="py-0.5 flex gap-1 items-center ">
               <FolderIcon type={data.span.type} /> {data.snippet}
             </span>
           </div>
